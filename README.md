@@ -146,6 +146,44 @@ Trust scores decay exponentially based on agent inactivity:
 
 This prevents dormant agents from retaining influence indefinitely.
 
+## Stake/Collateral System
+
+Economic security through staked tokens:
+
+```python
+# Enable stake-based vouching
+swarm.enable_stake()
+
+# Add stake to agent's account
+swarm.add_stake("osiris_01", 100.0)
+
+# Check stake info
+info = swarm.get_stake_info("osiris_01")
+# Returns: {stake, available, staked, decay_factor, last_activity}
+
+# Vouch with stake commitment
+success, msg = swarm.stake_vouch(
+    "osiris_01",      # from_agent
+    "osiris_02",      # to_agent
+    85,               # score
+    "Reliable worker" # reason
+)
+
+# Slash malicious agent
+slashed = swarm.slash_stake("osiris_02", "Sybil attack detected")
+```
+
+### Stake Parameters
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| Min stake to vouch | 10 | Minimum required to make a vouch |
+| Vouch multiplier | 0.1 | stake = score × 0.1 |
+| Stake halflife | 180 days | Unused stake decays |
+| Slashing threshold | 50% | Amount slashed for malicious behavior |
+
+Stake is optional and disabled by default. Enable with `swarm.enable_stake()`.
+
 ## Testing Framework
 
 Comprehensive testing is performed before each phase release:
@@ -170,16 +208,15 @@ See `TESTING_FRAMEWORK.md` for detailed test specifications.
 ## Known Limitations
 
 ### Current Limitations
-- **No stake/collateral requirement**: Currently no economic stake required to vouch
 - **On-chain/off-chain consistency**: Phase 3 (ERC-8004) not yet implemented
-- **No cryptographic signing**: Vouches are not cryptographically verified
+- **No cryptographic signing**: Vouches are not cryptographically verified (use Agent Attestation v3.0)
 - **Limited adversarial testing**: Full red-team simulations pending
 
 ### Roadmap to Address
-1. **Phase 2**: Implement stake-based vouching with slashing conditions
+1. **Phase 2.1**: Full adversarial testing with stake slashing
 2. **Phase 3**: ERC-8004 integration for on-chain trust records
 3. **Phase 3.1**: Cryptographic signatures for all vouches
-4. **Phase 3.2**: Full adversarial testing with external audit
+4. **Phase 3.2**: External security audit
 
 ### Security Considerations
 - Trust system assumes benevolent majority

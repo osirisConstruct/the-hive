@@ -153,6 +153,41 @@ class SwarmGovernance:
             "governance_health": "healthy" if active <= 5 else "needs attention"
         }
     
+    # ========== STAKE MANAGEMENT ==========
+    
+    def add_stake(self, agent_id: str, amount: float) -> bool:
+        """Add stake to agent's account."""
+        return self.adapter.add_stake(agent_id, amount)
+    
+    def get_stake(self, agent_id: str) -> float:
+        """Get agent's stake amount."""
+        return self.adapter.get_stake(agent_id)
+    
+    def get_stake_info(self, agent_id: str) -> dict:
+        """Get detailed stake info."""
+        return self.adapter.get_stake_info(agent_id)
+    
+    def stake_vouch(self, from_agent: str, to_agent: str, score: int, reason: str,
+                    domain: str = "general", skill: str = None) -> tuple:
+        """Vouch with stake commitment."""
+        return self.adapter.stake_vouch(from_agent, to_agent, score, reason, domain, skill)
+    
+    def can_vouch_with_stake(self, from_agent: str, vouch_score: int) -> tuple:
+        """Check if agent can vouch with stake."""
+        return self.adapter.can_vouch_with_stake(from_agent, vouch_score)
+    
+    def slash_stake(self, agent_id: str, reason: str) -> float:
+        """Slash agent's stake for malicious behavior."""
+        return self.adapter.slash_stake(agent_id, reason)
+    
+    def enable_stake(self) -> None:
+        """Enable stake-based vouching."""
+        self.adapter.STAKE_ENABLED = True
+    
+    def disable_stake(self) -> None:
+        """Disable stake-based vouching."""
+        self.adapter.STAKE_ENABLED = False
+    
     # ========== QUICK ACTIONS ==========
     
     def demo_swarm(self) -> None:

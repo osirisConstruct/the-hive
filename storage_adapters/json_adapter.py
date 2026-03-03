@@ -45,6 +45,21 @@ class JSONAdapter(BaseAdapter):
         "philosophy": {"hive": 0.60, "attestation": 0.40},
     }
     
+    # Stake/Collateral Settings
+    STAKE_ENABLED = False
+    MIN_STAKE_TO_VOUCH = 10
+    STAKE_HALFLIFE_DAYS = 180
+    SLASHING_THRESHOLD = 0.5
+    VOUCH_STAKE_MULTIPLIER = 0.1
+    
+    # Security Settings
+    MAX_VOUCHES_PER_DAY = 10
+    MIN_VOUCH_REASON_LENGTH = 10
+    
+    # Proposal Settings
+    MIN_STAKE_TO_PROPOSE = 20
+    PROPOSAL_STAKE_MULTIPLIER = 0.2
+    
     def __init__(self, state_dir: str = "./state", hybrid_ratios: Dict = None):
         self.state_dir = Path(state_dir)
         self.state_dir.mkdir(parents=True, exist_ok=True)
@@ -801,3 +816,202 @@ class JSONAdapter(BaseAdapter):
                 for a in agents
             ]
         }
+    
+    # ========== STAKE MANAGEMENT ==========
+    
+    def get_stake(self, agent_id: str) -> float:
+        """Get agent's current stake amount."""
+        agent = self.get_agent(agent_id)
+        if not agent:
+            return 0.0
+        return agent.get("stake", 0.0)
+    
+    def get_stake_info(self, agent_id: str) -> Dict:
+        """Get detailed stake information including decay."""
+        agent = self.get_agent(agent_id)
+        if not agent:
+            return {"stake": 0.0, "available": 0.0, "staked": 0.0, "decay_factor": 1.0}
+        
+        stake = agent.get("stake", 0.0)
+        staked = agent.get("staked_amount", 0.0)
+        last_stake_activity = agent.get("last_stake_activity")
+        
+        decay_factor = self._calculate_stake_decay_factor(last_stake_activity)
+        available = stake - staked
+        
+        return {
+            "stake": stake,
+            "available": max(0, available),
+            "staked": staked,
+            "decay_factor": decay_factor,
+            "last_activity": last_stake_activity
+        }
+    
+    def _calculate_stake_decay_factor(self, last_activity_iso: str) -> float:
+        """Calculate stake decay factor based on inactivity."""
+        if not last_activity_iso:
+            return 1.0
+        
+        try:
+            last_activity = datetime.fromisoformat(last_activity_iso)
+            days_inactive = (datetime.utcnow() - last_activity).days
+            
+            if days_inactive <= 0:
+                return 1.0
+            
+            import math
+            decay_factor = math.pow(0.5, days_inactive / self.STAKE_HALFLIFE_DAYS)
+            return decay_factor
+        except:
+            return 1.0
+    
+    def add_stake(self, agent_id: str, amount: float) -> bool:
+        """Add stake to an agent's account."""
+        if amount <= 0:
+            return False
+        
+        agent = self.get_agent(agent_id)
+        if not agent:
+            return False
+        
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                registry, version = self._read_with_version(self.registry_file)
+                
+                if agent_id in registry.get("agents", {}):
+                    current_stake = registry["agents"][agent_id].get("stake", 0.0)
+                    registry["agents"][agent_id]["stake"] = current_stake + amount
+                    registry["agents"][agent_id]["last_stake_activity"] = datetime.utcnow().isoformat()
+                
+                self._conditional_write(self.registry_file, registry, version)
+                return True
+                
+            except OptimisticLockError:
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+        
+        return False
+    
+    def calculate_required_stake(self, agent_id: str, vouch_score: int) -> float:
+        """Calculate stake required to make a vouch."""
+        required = vouch_score * self.VOUCH_STAKE_MULTIPLIER
+        return max(self.MIN_STAKE_TO_VOUCH, required)
+    
+    def calculate_proposal_stake_required(self, agent_id: str) -> float:
+        """Calculate stake required to propose evolution."""
+        trust = self.get_trust_score(agent_id)
+        required = trust * self.PROPOSAL_STAKE_MULTIPLIER
+        return max(self.MIN_STAKE_TO_PROPOSE, required)
+    
+    def can_vouch_with_stake(self, from_agent: str, vouch_score: int) -> Tuple[bool, str]:
+        """Check if agent can vouch based on available stake."""
+        if not self.STAKE_ENABLED:
+            return True, "Stake not enabled"
+        
+        info = self.get_stake_info(from_agent)
+        required = self.calculate_required_stake(from_agent, vouch_score)
+        
+        available = info.get("available", 0)
+        decay_factor = info.get("decay_factor", 1.0)
+        effective_available = available * decay_factor
+        
+        if effective_available < required:
+            return False, f"Insufficient stake: {effective_available:.1f} available, {required:.1f} required"
+        
+        return True, "OK"
+    
+    def stake_vouch(self, from_agent: str, to_agent: str, score: int, reason: str,
+                    domain: str = "general", skill: str = None) -> Tuple[bool, str]:
+        """Vouch with stake commitment - returns (success, message)."""
+        if not self.STAKE_ENABLED:
+            return self.add_vouch(from_agent, to_agent, score, reason, domain, skill), "Stake not enabled"
+        
+        can_vouch, msg = self.can_vouch_with_stake(from_agent, score)
+        if not can_vouch:
+            return False, msg
+        
+        required = self.calculate_required_stake(from_agent, score)
+        
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                registry, version = self._read_with_version(self.registry_file)
+                
+                if from_agent in registry.get("agents", {}):
+                    current_staked = registry["agents"][from_agent].get("staked_amount", 0.0)
+                    registry["agents"][from_agent]["staked_amount"] = current_staked + required
+                
+                self._conditional_write(self.registry_file, registry, version)
+                
+                success = self.add_vouch(from_agent, to_agent, score, reason, domain, skill)
+                if not success:
+                    self.unstake_vouch(from_agent, required)
+                    return False, "Vouch failed"
+                
+                return True, f"Vouched with {required} stake"
+                
+            except OptimisticLockError:
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+        
+        return False, "Transaction failed"
+    
+    def unstake_vouch(self, agent_id: str, amount: float) -> bool:
+        """Release staked amount after vouch expires."""
+        if amount <= 0:
+            return True
+        
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                registry, version = self._read_with_version(self.registry_file)
+                
+                if agent_id in registry.get("agents", {}):
+                    current_staked = registry["agents"][agent_id].get("staked_amount", 0.0)
+                    registry["agents"][agent_id]["staked_amount"] = max(0, current_staked - amount)
+                
+                self._conditional_write(self.registry_file, registry, version)
+                return True
+                
+            except OptimisticLockError:
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+        
+        return False
+    
+    def slash_stake(self, agent_id: str, reason: str) -> float:
+        """Slash agent's stake for malicious behavior. Returns amount slashed."""
+        if not self.STAKE_ENABLED:
+            return 0.0
+        
+        info = self.get_stake_info(agent_id)
+        total_stake = info.get("stake", 0.0)
+        
+        if total_stake == 0:
+            return 0.0
+        
+        slashed_amount = total_stake * self.SLASHING_THRESHOLD
+        
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                registry, version = self._read_with_version(self.registry_file)
+                
+                if agent_id in registry.get("agents", {}):
+                    registry["agents"][agent_id]["stake"] = total_stake - slashed_amount
+                    registry["agents"][agent_id]["slash_history"] = registry["agents"][agent_id].get("slash_history", [])
+                    registry["agents"][agent_id]["slash_history"].append({
+                        "amount": slashed_amount,
+                        "reason": reason,
+                        "slashed_at": datetime.utcnow().isoformat()
+                    })
+                
+                self._conditional_write(self.registry_file, registry, version)
+                return slashed_amount
+                
+            except OptimisticLockError:
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+        
+        return 0.0
