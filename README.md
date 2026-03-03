@@ -4,6 +4,8 @@
 
 The Hive is a self-governing swarm system where agents connect, vote on evolution proposals, and build trust through peer attestation.
 
+**GitHub:** https://github.com/osirisConstruct/the-hive
+
 ## Architecture
 
 ```
