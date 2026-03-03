@@ -30,13 +30,31 @@ class JSONAdapter(BaseAdapter):
     MIN_VOTES = 2  # Minimum votes to reach quorum
     MAX_RETRIES = 3  # Max retries for optimistic lock conflicts
     
-    def __init__(self, state_dir: str = "./state"):
+    # Reputation Decay Settings
+    DECAY_HALFLIFE_DAYS = 180  # Trust halves every 6 months of inactivity
+    DECAY_ENABLED = True
+    
+    # Configurable Hybrid Scores (domain-specific)
+    DEFAULT_HYBRID_RATIOS = {
+        "general": {"hive": 0.70, "attestation": 0.30},
+        "coding": {"hive": 0.70, "attestation": 0.30},
+        "security": {"hive": 0.80, "attestation": 0.20},
+        "writing": {"hive": 0.60, "attestation": 0.40},
+        "research": {"hive": 0.65, "attestation": 0.35},
+        "ops": {"hive": 0.75, "attestation": 0.25},
+        "philosophy": {"hive": 0.60, "attestation": 0.40},
+    }
+    
+    def __init__(self, state_dir: str = "./state", hybrid_ratios: Dict = None):
         self.state_dir = Path(state_dir)
         self.state_dir.mkdir(parents=True, exist_ok=True)
         
         # Ensure directories exist
         (self.state_dir / "attestations").mkdir(exist_ok=True)
         (self.state_dir / "proposals").mkdir(exist_ok=True)
+        
+        # Store hybrid ratios (configurable by domain)
+        self.hybrid_ratios = hybrid_ratios or self.DEFAULT_HYBRID_RATIOS
         
         # Initialize registry if not exists
         self.registry_file = self.state_dir / "registry.json"
@@ -137,6 +155,7 @@ class JSONAdapter(BaseAdapter):
                     registry["agents"] = {}
                 
                 agent_info["registered_at"] = datetime.utcnow().isoformat()
+                agent_info["last_activity_at"] = datetime.utcnow().isoformat()
                 agent_info["trust_score"] = 0.0
                 agent_info["vouch_count"] = 0
                 
@@ -159,9 +178,59 @@ class JSONAdapter(BaseAdapter):
     
     # ========== TRUST & VOUCHES ==========
     
+    def _calculate_decay_factor(self, last_activity_iso: str) -> float:
+        """Calculate exponential decay factor based on last activity."""
+        if not last_activity_iso:
+            return 1.0
+        
+        try:
+            last_activity = datetime.fromisoformat(last_activity_iso)
+            days_inactive = (datetime.utcnow() - last_activity).days
+            
+            if days_inactive <= 0:
+                return 1.0
+            
+            # Exponential decay: factor = 0.5^(days/halflife)
+            import math
+            decay_factor = math.pow(0.5, days_inactive / self.DECAY_HALFLIFE_DAYS)
+            return decay_factor
+        except:
+            return 1.0
+    
     def get_trust_score(self, agent_id: str) -> float:
-        """Calculate trust score from vouches (0-100)."""
-        return self._calculate_trust_recursive(agent_id, set())
+        """Calculate trust score from vouches (0-100) with decay."""
+        base_score = self._calculate_trust_recursive(agent_id, set())
+        
+        # Apply decay if enabled
+        if self.DECAY_ENABLED:
+            agent = self.get_agent(agent_id)
+            if agent:
+                last_activity = agent.get("last_activity_at")
+                decay_factor = self._calculate_decay_factor(last_activity)
+                return round(base_score * decay_factor, 2)
+        
+        return base_score
+    
+    def get_hybrid_trust_score(self, agent_id: str, domain: str = "general") -> Dict:
+        """Get hybrid trust score combining Hive + Attestation with configurable ratios."""
+        hive_score = self.get_trust_score(agent_id)
+        
+        # Get domain-specific ratio or use default
+        ratio = self.hybrid_ratios.get(domain, self.hybrid_ratios["general"])
+        
+        # Attestation score would come from external system (placeholder)
+        attestation_score = 0.0  # Would integrate with Agent Attestation system
+        
+        # Calculate hybrid
+        hybrid = (hive_score * ratio["hive"]) + (attestation_score * ratio["attestation"])
+        
+        return {
+            "hive_score": hive_score,
+            "attestation_score": attestation_score,
+            "hybrid_score": round(hybrid, 2),
+            "domain": domain,
+            "ratio": ratio
+        }
     
     def get_trust_by_domain(self, agent_id: str) -> Dict:
         """Calculate trust scores per domain."""
@@ -447,6 +516,9 @@ class JSONAdapter(BaseAdapter):
                 # Update trust score in registry (with its own locking)
                 self._update_agent_trust(to_agent, len(attestations))
                 
+                # Update last activity timestamp
+                self._update_agent_activity(to_agent)
+                
                 return True
                 
             except OptimisticLockError:
@@ -465,6 +537,23 @@ class JSONAdapter(BaseAdapter):
                 if agent_id in registry.get("agents", {}):
                     registry["agents"][agent_id]["trust_score"] = self.get_trust_score(agent_id)
                     registry["agents"][agent_id]["vouch_count"] = vouch_count
+                
+                self._conditional_write(self.registry_file, registry, version)
+                return
+                
+            except OptimisticLockError:
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+    
+    def _update_agent_activity(self, agent_id: str) -> None:
+        """Update agent's last activity timestamp."""
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                registry, version = self._read_with_version(self.registry_file)
+                
+                if agent_id in registry.get("agents", {}):
+                    registry["agents"][agent_id]["last_activity_at"] = datetime.utcnow().isoformat()
                 
                 self._conditional_write(self.registry_file, registry, version)
                 return
