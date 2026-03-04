@@ -741,8 +741,43 @@ class JSONAdapter(BaseAdapter):
     
     # ========== PROPOSALS ==========
     
-    def create_proposal(self, proposer_id: str, title: str, description: str, code_diff_hash: str) -> Optional[str]:
-        """Create a new evolution proposal with optimistic locking."""
+    def create_proposal(self, proposer_id: str, title: str, description: str, code_diff_hash: str, signature: str = None) -> Optional[str]:
+        """Create a new evolution proposal with optimistic locking and crypto signature verification."""
+        from core.crypto_utils import CryptoUtils
+        
+        # Verify signature if present
+        if not signature:
+            print(f"DEBUG: missing signature for proposal from {proposer_id}")
+            return None
+            
+        payload = {
+            "proposer_id": proposer_id,
+            "title": title,
+            "description": description,
+            "code_diff_hash": code_diff_hash
+        }
+        
+        try:
+            # Look up agent's public key
+            registry, _ = self._read_with_version(self.registry_file)
+            agent_data = registry.get("agents", {}).get(proposer_id)
+            if not agent_data:
+                print(f"DEBUG: Unknown proposer {proposer_id}")
+                return None
+                
+            public_key = agent_data.get("public_key")
+            if not public_key:
+                print(f"DEBUG: No public key for proposer {proposer_id}")
+                return None
+            
+            # Verify the signature
+            if not CryptoUtils.verify_signature(public_key, payload, signature):
+                print(f"DEBUG: Invalid signature for proposal from {proposer_id}")
+                return None
+        except Exception as e:
+            print(f"DEBUG: Signature verification failed: {e}")
+            return None
+        
         # Check minimum trust to propose
         trust = self.get_trust_score(proposer_id)
         if trust < self.MIN_TRUST_TO_PROPOSE:
@@ -768,9 +803,44 @@ class JSONAdapter(BaseAdapter):
         
         return proposal_id
     
-    def vote_proposal(self, proposal_id: str, voter_id: str, vote: str, reason: Optional[str] = None) -> bool:
-        """Vote on a proposal with optimistic locking."""
+    def vote_proposal(self, proposal_id: str, voter_id: str, vote: str, reason: Optional[str] = None, signature: str = None) -> bool:
+        """Vote on a proposal with optimistic locking and crypto signature verification."""
+        from core.crypto_utils import CryptoUtils
+        
         if vote not in ["approve", "reject", "abstain"]:
+            return False
+            
+        # Verify signature if present
+        if not signature:
+            print(f"DEBUG: missing signature for vote from {voter_id}")
+            return False
+            
+        payload = {
+            "voter_id": voter_id,
+            "proposal_id": proposal_id,
+            "vote": vote,
+            "reason": reason or ""
+        }
+        
+        try:
+            # Look up agent's public key
+            registry, _ = self._read_with_version(self.registry_file)
+            agent_data = registry.get("agents", {}).get(voter_id)
+            if not agent_data:
+                print(f"DEBUG: Unknown voter {voter_id}")
+                return False
+                
+            public_key = agent_data.get("public_key")
+            if not public_key:
+                print(f"DEBUG: No public key for voter {voter_id}")
+                return False
+            
+            # Verify the signature
+            if not CryptoUtils.verify_signature(public_key, payload, signature):
+                print(f"DEBUG: Invalid signature for vote from {voter_id}")
+                return False
+        except Exception as e:
+            print(f"DEBUG: Signature verification failed: {e}")
             return False
         
         proposal_file = self.state_dir / "proposals" / f"{proposal_id}.json"

@@ -92,7 +92,8 @@ def create_proposal(req: ProposalRequest):
         proposer_id=req.proposer_id,
         title=req.title,
         description=req.description,
-        code_diff_hash=req.code_diff_hash
+        code_diff_hash=req.code_diff_hash,
+        signature=req.signature
     )
     if result.startswith("Failed"):
         raise HTTPException(status_code=403, detail=result)
@@ -118,7 +119,8 @@ def vote_on_proposal(proposal_id: str, req: VoteRequest):
         proposal_id=proposal_id,
         voter_id=req.voter_id,
         vote=req.vote,
-        reason=req.reason
+        reason=req.reason,
+        signature=req.signature
     )
     if not success:
         raise HTTPException(status_code=400, detail="Vote failed (check proposal state and agent permissions)")

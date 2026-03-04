@@ -86,14 +86,16 @@ class SwarmGovernance:
         proposer_id: str,
         title: str,
         description: str,
-        code_diff_hash: str
+        code_diff_hash: str,
+        signature: str = None
     ) -> str:
         """Submit an evolution proposal."""
         proposal_id = self.adapter.create_proposal(
             proposer_id=proposer_id,
             title=title,
             description=description,
-            code_diff_hash=code_diff_hash
+            code_diff_hash=code_diff_hash,
+            signature=signature
         )
         
         if proposal_id:
@@ -105,10 +107,11 @@ class SwarmGovernance:
         proposal_id: str,
         voter_id: str,
         vote: str,
-        reason: str = None
+        reason: str = None,
+        signature: str = None
     ) -> bool:
         """Vote on a proposal."""
-        return self.adapter.vote_proposal(proposal_id, voter_id, vote, reason)
+        return self.adapter.vote_proposal(proposal_id, voter_id, vote, reason, signature)
     
     def get_proposal(self, proposal_id: str) -> dict:
         """Get proposal details."""

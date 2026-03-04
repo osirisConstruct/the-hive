@@ -22,11 +22,13 @@ class ProposalRequest(BaseModel):
     title: str
     description: str
     code_diff_hash: str
+    signature: str  # Base64 encoded Ed25519 signature of the payload
 
 class VoteRequest(BaseModel):
     voter_id: str
     vote: str = Field(..., pattern="^(approve|reject|abstain)$")
     reason: Optional[str] = None
+    signature: str  # Base64 encoded Ed25519 signature of the payload
 
 class StakeRequest(BaseModel):
     amount: float = Field(..., gt=0)
