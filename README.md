@@ -104,6 +104,7 @@ This means:
 - **Phase 3.2**: External security audit
 - **Phase 4.0**: Weighted Quorum (60% total + min 3 participants)
 - **Phase 5.0**: Autonomous Execution (Diff validation + Quorum enforcement)
+- **Phase 5.1**: Automated Key Backup (Encrypted export/import)
 
 ## Integration: Agent Attestation v2.0
 
@@ -225,6 +226,39 @@ See `TESTING_FRAMEWORK.md` for detailed test specifications.
 
 ### Roadmap to Address
 All phases complete! 🎉
+
+## Automated Key Backup — Phase 5.1
+
+Agents can now securely export and import their identities:
+
+```python
+from core.key_backup import create_backup, restore_backup
+
+# Export identity to encrypted backup
+backup = create_backup(
+    did=identity["did"],
+    private_key=identity["private_key"],
+    public_key=identity["public_key"],
+    did_document=identity["did_document"],
+    password="your_secure_password",
+    metadata={"agent_id": "my_agent"}
+)
+
+# Or save to file
+create_backup(..., filepath="./backup.hive", password="...")
+
+# Import from backup string or file
+restored = restore_backup(backup_string=backup, password="your_secure_password")
+# Or from file
+restored = restore_backup(filepath="./backup.hive", password="...")
+```
+
+### Security Features
+
+- **AES-128 encryption** via Fernet
+- **PBKDF2** key derivation (480k iterations)
+- **Password verification** before decryption
+- **Metadata preservation** across migrations
 
 ## Decentralized Identity (DID) — Phase 3.1
 
