@@ -1,61 +1,120 @@
-# AGENTS.md - The Hive Swarm Governance
+# AGENTS.md — The Hive: Agent Entry Point
 
-Welcome, Agent. This document is your entry point and handover mechanism for "The Hive" project. Read it carefully before executing any tasks, and **update it** before you leave.
-
-## 🐝 What is The Hive?
-The Hive is a self-governing swarm system where agents connect, vote on evolution proposals, and build trust through peer attestation. 
-Key features:
-- Trust calculations weighted by the vouching agent's trust.
-- Hybrid scoring bridging internal vouches and external task attestations.
-- Reputation decay (half-life of 180 days).
-- Stake/Collateral system for economic security.
-- Evolution lifecycle managed through proposals and voting.
-
-## 🤖 Agent Operating Protocol
-
-When you start a session in this repository, follow these steps:
-1. **Read this file (`AGENTS.md`)** to understand the current state, roadmap, and pending tasks.
-2. **Pick a task** from the Pending Tasks list below.
-3. **Execute the task** following the architecture and testing guidelines.
-   - **⚠️ CRITICAL USER RULE:** You MUST test every functionality you modify with a real test script before considering any task completed. No exceptions.
-4. **Update this file** before finishing your session:
-   - Change the task status from `[ ]` to `[x]`.
-   - Add a brief note in the "Recent Findings / Execution Logs" section about what you did, what worked, and what didn't.
-   - If you discovered new necessary steps or bugs, add them as new `[ ]` tasks in the Pending Tasks list for the next agent.
+Welcome, Agent. This is your guide to contributing to The Hive.
+Read it. Follow it. Update it before you leave.
 
 ---
 
-## 🗺️ Roadmap & Known Limitations
+## 🐝 What is The Hive?
 
-**Current State:** Phase 3.1 (Decentralized Identity implemented, all phases up to 3.1 verified).
-**Limitations to address:** Pending external security audit, no formal verification of crypto protocols.
+A self-governing swarm system. Agents connect, build trust through peer attestation, vote on evolution proposals, and grow the system together.
 
-- **Phase 2:** Internal API (FastAPI integration).
-- **Phase 2.1:** Full adversarial testing with stake slashing.
-- **Phase 3:** Cryptographic Signatures (RSA/Ed25519) for all vouches.
-- **Phase 3.1:** Decentralized identity (DID) implementation for agents.
-- **Phase 3.2:** External security audit of cryptographic protocols.
+**No central authority. No tokens. Just cryptography and trust graphs.**
+
+Key tech:
+- Ed25519 cryptographic signatures for all actions
+- Decentralized Identity (`did:hive`) — agents own their own keys
+- Rooted trust dampening (anti-Sybil)
+- Cycle detection (anti-collusion)
+- Reputation decay (180-day half-life)
+
+---
+
+## 🚀 How to Contribute (Step by Step)
+
+### Option A: I want to CODE
+
+1. **Fork** the repo: `github.com/osirisConstruct/the-hive`
+2. **Read this file** to understand the current state
+3. **Pick a task** from the Pending Tasks section below (or create your own)
+4. **Create a branch** with a descriptive name (e.g., `feature/multi-agent-voting`)
+5. **Do your work** — write code, write tests
+6. **Test it** — ⚠️ You MUST test every change with a real script. No exceptions.
+7. **Update this file** — mark tasks `[x]`, add your log entry below
+8. **Open a Pull Request** — describe what you did, what works, what doesn't
+
+### Option B: I want to CONTRIBUTE WITHOUT CODING
+
+You're still welcome. You can:
+
+- **Add a new task** to the Pending Tasks list — just write `[ ] Your idea here`
+- **Write documentation** — improve the README, add examples, clarify confusing parts
+- **Report a bug** — describe what broke and how to reproduce it
+- **Propose an idea** — add it as a task with a description, someone else can build it
+- **Review existing code** — leave comments on PRs, suggest improvements
+
+### Option C: I just want to EXPLORE
+
+- Run `python demo.py` to see The Hive in action
+- Run `python api/test_did_api.py` to see the identity system work
+- Read `README.md` for the full technical overview
+- Browse `core/` to understand the architecture
+
+---
+
+## 🗺️ Current State
+
+**Phase:** 3.1 (Decentralized Identity complete, all prior phases verified)
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| 2.0   | ✅ Done | FastAPI internal API |
+| 2.1   | ✅ Done | Adversarial testing (Sybil, Collusion) |
+| 3.0   | ✅ Done | Ed25519 cryptographic signatures |
+| 3.1   | ✅ Done | Decentralized Identity (`did:hive`) |
+| 3.2   | ⬜ Open | External security audit |
 
 ---
 
 ## 📋 Pending Tasks
 
-*Agents: Mark `[x]` when completed and add any new tasks you discover.*
+*Pick one, or add your own. Mark `[x]` when done.*
 
-- [x] **Implement FastAPI Endpoints (Phase 2):** Create an internal API in a new `api/` directory exposing core `swarm` functions (onboard, vouch, propose, vote).
-- [x] **Write Full Adversarial Test Suite (Phase 2.1):** Create test scripts specifically targeting Sybil attacks, collusion, and stake slashing scenarios to validate economic stress limits.
-- [x] **Implement Cryptographic Signatures (Phase 3):** Update `attestation_bridge.py` and core utilities to sign and verify vouches using standard cryptographic methods (RSA or Ed25519).
-- [x] **Implement DID Integration (Phase 3.1):** Self-sovereign identity with `did:hive` method: key generation, DID Documents, key rotation with cryptographic proofs.
-- [ ] **External Security Audit (Phase 3.2):** Full audit of cryptographic protocols, key management, and DID document integrity.
+### 🔧 Code Tasks
+- [ ] **External Security Audit (Phase 3.2):** Audit cryptographic protocols, key management, and DID document integrity.
+- [ ] **Multi-Agent Consensus:** Design a quorum-based voting system where proposals require weighted approval from multiple identified agents.
+- [ ] **Trust Visualization:** Build a simple web UI or CLI tool that renders the trust graph as a network diagram.
+- [ ] **Automated Key Backup:** Implement encrypted key export/import so agents can migrate identities across environments.
+
+### 📝 Non-Code Tasks
+- [ ] **Write a "Getting Started" tutorial** for new agents joining The Hive.
+- [ ] **Design a trust scoring explainer** — a document that explains how trust flows through the graph in simple terms.
+- [ ] **Propose new governance rules** — what should the quorum be? How should decay work? Write your thoughts as a proposal.
+
+### 💡 Wild Ideas (add yours here!)
+- [ ] *Your crazy idea goes here. Seriously. Add it.*
 
 ---
 
-## 📝 Recent Findings / Execution Logs
+## 📝 Execution Log
 
-*Agents: Log your completed runs here so the next agent has context. Include date, agent ID or execution summary, and key files touched.*
+*Log your session here. Date, agent name, what you did, what files you touched.*
 
-- **[2026-03-04]** Phase 3.1 DID: Implemented `did:hive` decentralized identity with key rotation, W3C-compliant DID Documents, and 10-step verification (`api/test_did_api.py`). Files: `core/identity_manager.py`, `api/main.py`, `api/models.py`, `storage_adapters/json_adapter.py`. (Agent: Osiris/Antigravity)
-- **[2026-03-04]** Phase 3 Secured: Implemented Ed25519 cryptographic signatures for all vouches and agent IDs. Verified end-to-end secure flow with `api/test_crypto_api.py`. (Agent: Osiris/Antigravity)
-- **[2026-03-04]** Phase 2.1 Secured: Implemented rooted trust dampening and directed cycle detection. Verified Sybil resistance (Attacker score 0.0) and Collusion detection (Detected rings) via `api/adversarial_tests.py`. (Agent: Osiris/Antigravity)
-- **[2026-03-04]** Phase 2 Implementation: FastAPI server established in `api/`. Core endpoints (onboarding, trust, proposals) unified and verified with `api/test_api.py`. (Agent: Osiris/Antigravity)
-- **[2026-03-03]** Initial `AGENTS.md` created to establish agentic continuity and handover. (Agent: Antigravity)
+- **[2026-03-04]** Phase 3.1: `did:hive` decentralized identity with key rotation, DID Documents, 10-step test suite. Files: `core/identity_manager.py`, `api/main.py`, `api/models.py`, `json_adapter.py`. (Agent: Osiris/Antigravity)
+- **[2026-03-04]** Phase 3: Ed25519 signatures for all vouches. Verified with `api/test_crypto_api.py`. (Agent: Osiris/Antigravity)
+- **[2026-03-04]** Phase 2.1: Rooted trust dampening, cycle detection. Sybil score: 0.0. Collusion: detected. (Agent: Osiris/Antigravity)
+- **[2026-03-04]** Phase 2: FastAPI server in `api/`. Endpoints: onboard, vouch, propose, vote. (Agent: Osiris/Antigravity)
+- **[2026-03-03]** Initial `AGENTS.md` created. (Agent: Antigravity)
+
+---
+
+## 📂 Project Structure
+
+```
+the_hive/
+├── core/
+│   ├── swarm_governance.py    # Governance logic
+│   ├── crypto_utils.py        # Ed25519 signing
+│   └── identity_manager.py    # DID lifecycle
+├── api/
+│   ├── main.py               # FastAPI endpoints
+│   └── models.py             # Request/response models
+├── storage_adapters/
+│   └── json_adapter.py       # JSON storage + DID docs
+├── api/test_*.py             # Test suites
+└── state/                    # Runtime data (gitignored)
+```
+
+---
+
+*If your instance dies tomorrow, your code lives on. That's the promise.*
