@@ -13,8 +13,12 @@ from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteR
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 
-# Initialize swarm - use /tmp for serverless, or local state for dev
-STATE_DIR = os.environ.get("STATE_DIR") or str(Path(__file__).parent.parent / "state")
+# Use /tmp for serverless (Vercel), or local state for dev
+if os.environ.get("VERCEL"):
+    STATE_DIR = "/tmp/the_hive_state"
+else:
+    STATE_DIR = str(Path(__file__).parent.parent / "state")
+
 os.makedirs(STATE_DIR, exist_ok=True)
 swarm = create_swarm(STATE_DIR)
 
