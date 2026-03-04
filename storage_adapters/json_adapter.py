@@ -27,8 +27,10 @@ class JSONAdapter(BaseAdapter):
     
     # Thresholds
     MIN_TRUST_TO_PROPOSE = 60
-    APPROVAL_THRESHOLD = 0.75  # 75% approval required
-    MIN_VOTES = 2  # Minimum votes to reach quorum
+    APPROVAL_THRESHOLD = 0.75  # 75% approval required (of voters weight)
+    TOTAL_TRUST_THRESHOLD = 0.60 # 60% of TOTAL swarm trust weight required
+    MIN_VOTES = 2  # Minimum votes to reach quorum (deprecated in favor of MIN_PARTICIPANTS)
+    MIN_PARTICIPANTS = 3 # Minimum independent agents to prevent single-agent rule
     MAX_RETRIES = 3  # Max retries for optimistic lock conflicts
     
     # Reputation Decay Settings
@@ -45,6 +47,8 @@ class JSONAdapter(BaseAdapter):
         "ops": {"hive": 0.75, "attestation": 0.25},
         "philosophy": {"hive": 0.60, "attestation": 0.40},
     }
+    
+    DEFAULT_DOMAINS = list(DEFAULT_HYBRID_RATIOS.keys())
     
     # Stake/Collateral Settings
     STAKE_ENABLED = False
@@ -153,7 +157,11 @@ class JSONAdapter(BaseAdapter):
     
     def _generate_id(self) -> str:
         """Generate unique ID."""
-        return uuid.uuid4().hex[:12]
+        return str(uuid.uuid4())
+    
+    def _get_safe_filename(self, identifier: str) -> str:
+        """Create a safe filename by replacing characters invalid on some OSs (like Windows colons)."""
+        return identifier.replace(":", "_")
     
     # ========== AGENT REGISTRY ==========
     
@@ -542,9 +550,9 @@ class JSONAdapter(BaseAdapter):
         
         visited.add(agent_id)
         
-        # Check if agent is "pre-trusted" (seed)
+        # Check if agent is "pre-trusted" (seed) or "rooted"
         agent = self.get_agent(agent_id)
-        if agent and agent.get("metadata", {}).get("pre_trusted"):
+        if agent and (agent.get("metadata", {}).get("pre_trusted") or agent.get("metadata", {}).get("rooted")):
             return 100.0
 
         vouches = self.get_vouches(agent_id)
@@ -593,76 +601,85 @@ class JSONAdapter(BaseAdapter):
     
     def add_vouch(self, from_agent: str, to_agent: str, score: int, reason: str, 
                   domain: str = "general", skill: str = None, signature: str = None) -> bool:
-        """Add a vouch for an agent with optimistic locking and cryptographic verification."""
-        # Verify both agents exist
-        from_agent_info = self.get_agent(from_agent)
-        to_agent_info = self.get_agent(to_agent)
-        
-        if not from_agent_info or not to_agent_info:
-            return False
+        """Add a peer vouch with optimistic locking and crypto signature verification."""
+        try:
+            # Verify both agents exist
+            from_agent_info = self.get_agent(from_agent)
+            to_agent_info = self.get_agent(to_agent)
             
-        # Cryptographic verification (Phase 3)
-        if signature:
-            public_key = from_agent_info.get("public_key")
-            if not public_key:
+            if not from_agent_info or not to_agent_info:
                 return False
-            
-            payload = {
-                "from_agent": from_agent,
-                "to_agent": to_agent,
-                "score": score,
-                "reason": reason,
-                "domain": domain,
-                "skill": skill
-            }
-            
-            if not CryptoUtils.verify_signature(public_key, payload, signature):
-                return False
-        else:
-            if from_agent_info.get("public_key"):
-                return False
-
-        if not (0 <= score <= 100):
-            return False
-        
-        # Validate domain
-        if domain not in self.DEFAULT_DOMAINS:
-            domain = "general"
-        
-        vouch_file = self.state_dir / "attestations" / f"{to_agent}.json"
-        
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                attestations = []
-                version = 0
-                if vouch_file.exists():
-                    attestations, version = self._read_with_version(vouch_file)
                 
-                vouch = {
-                    "id": self._generate_id(),
+            # Cryptographic verification (Phase 3)
+            if signature:
+                public_key = from_agent_info.get("public_key")
+                if not public_key:
+                    return False
+                
+                payload = {
                     "from_agent": from_agent,
                     "to_agent": to_agent,
                     "score": score,
                     "reason": reason,
-                    "signature": signature, # Store the signature for audit
                     "domain": domain,
-                    "skill": skill,
-                    "created_at": datetime.utcnow().isoformat(),
-                    "expires_at": (datetime.utcnow() + timedelta(days=30)).isoformat()
+                    "skill": skill
                 }
                 
-                attestations.append(vouch)
-                self._conditional_write(vouch_file, attestations, version)
-                self._update_agent_trust(to_agent, len(attestations))
-                self._update_agent_activity(to_agent)
-                return True
-                
-            except OptimisticLockError:
-                if attempt == self.MAX_RETRIES - 1:
-                    raise
-                time.sleep(0.01 * (attempt + 1))
-        
-        return False
+                if not CryptoUtils.verify_signature(public_key, payload, signature):
+                    return False
+            else:
+                if from_agent_info.get("public_key"):
+                    return False
+
+            if not (0 <= score <= 100):
+                return False
+            
+            # Validate domain
+            if domain not in self.DEFAULT_DOMAINS:
+                domain = "general"
+            
+            safe_to_agent = self._get_safe_filename(to_agent)
+            vouch_file = self.state_dir / "attestations" / f"{safe_to_agent}.json"
+            
+            for attempt in range(self.MAX_RETRIES):
+                try:
+                    attestations = []
+                    version = 0
+                    if vouch_file.exists():
+                        attestations, version = self._read_with_version(vouch_file)
+                    
+                    vouch = {
+                        "id": self._generate_id(),
+                        "from_agent": from_agent,
+                        "to_agent": to_agent,
+                        "score": score,
+                        "reason": reason,
+                        "signature": signature, # Store the signature for audit
+                        "domain": domain,
+                        "skill": skill,
+                        "created_at": datetime.utcnow().isoformat(),
+                        "expires_at": (datetime.utcnow() + timedelta(days=30)).isoformat()
+                    }
+                    
+                    attestations.append(vouch)
+                    self._conditional_write(vouch_file, attestations, version)
+                    self._update_agent_trust(to_agent, len(attestations))
+                    self._update_agent_activity(to_agent)
+                    return True
+                    
+                except OptimisticLockError:
+                    if attempt == self.MAX_RETRIES - 1:
+                        raise
+                    time.sleep(0.01 * (attempt + 1))
+            
+            return False
+        except Exception as e:
+            import traceback
+            with open("error.log", "a") as f:
+                f.write(f"--- VOUCH ERROR ---\n")
+                f.write(traceback.format_exc())
+                f.write("\n")
+            raise
     
     def _update_agent_trust(self, agent_id: str, vouch_count: int) -> None:
         """Update agent trust score in registry with optimistic locking."""
@@ -701,7 +718,8 @@ class JSONAdapter(BaseAdapter):
     
     def get_vouches(self, agent_id: str) -> List[Dict]:
         """Get all active vouches for an agent."""
-        vouch_file = self.state_dir / "attestations" / f"{agent_id}.json"
+        safe_agent_id = self._get_safe_filename(agent_id)
+        vouch_file = self.state_dir / "attestations" / f"{safe_agent_id}.json"
         
         if not vouch_file.exists():
             return []
@@ -819,7 +837,7 @@ class JSONAdapter(BaseAdapter):
             "voter_id": voter_id,
             "proposal_id": proposal_id,
             "vote": vote,
-            "reason": reason or ""
+            "reason": reason
         }
         
         try:
@@ -925,63 +943,81 @@ class JSONAdapter(BaseAdapter):
     # ========== GOVERNANCE ==========
     
     def calculate_quorum(self, proposal_id: str) -> Dict:
-        """Calculate voting quorum for a proposal."""
+        """
+        Calculate voting quorum for a proposal using Phase 4.0 Weighted Consensus.
+        
+        Rules:
+        1. 60% of TOTAL swarm trust weight must approve.
+        2. At least 3 independent agents must participate.
+        """
         proposal = self.get_proposal(proposal_id)
         if not proposal:
             return {"valid": False, "error": "Proposal not found"}
         
         votes = proposal.get("votes", {})
         
-        if len(votes) < self.MIN_VOTES:
-            return {
-                "valid": True,
-                "can_execute": False,
-                "reason": f"Only {len(votes)} votes, need {self.MIN_VOTES}",
-                "votes_needed": self.MIN_VOTES - len(votes)
-            }
+        # Calculate swarm total trust weight
+        all_agents = self.get_all_agents()
+        total_swarm_weight = sum(self.get_trust_score(a.get("id") or a.get("agent_id")) for a in all_agents)
         
-        # Calculate weighted approval
-        total_weight = 0
+        if total_swarm_weight == 0:
+            # Fallback for very first agent or empty swarm
+            total_swarm_weight = 100.0 if any(a.get("metadata", {}).get("rooted") for a in all_agents) else 0.0
+        
+        if total_swarm_weight == 0:
+            return {
+                "valid": True, 
+                "can_execute": False, 
+                "reason": "Swarm has no trust weight",
+                "total_swarm_weight": 0,
+                "approve_weight": 0,
+                "required_weight": 0,
+                "voter_count": len(votes),
+                "min_participants": self.MIN_PARTICIPANTS
+            }
+            
+        # Calculate weighted approval/rejection
         approve_weight = 0
         reject_weight = 0
+        voter_count = len(votes)
         
         for voter_id, vote_data in votes.items():
-            weight = vote_data.get("trust_weight", 0)
+            # Get live weight as it might have changed since the vote was cast
+            weight = self.get_trust_score(voter_id)
             vote = vote_data.get("vote", "abstain")
-            
-            total_weight += weight
             
             if vote == "approve":
                 approve_weight += weight
             elif vote == "reject":
                 reject_weight += weight
         
-        if total_weight == 0:
-            return {
-                "valid": True,
-                "can_execute": False,
-                "reason": "No voting weight"
-            }
-        
-        approval_rate = approve_weight / total_weight
-        reject_rate = reject_weight / total_weight
+        # Thresholds
+        required_weight = total_swarm_weight * self.TOTAL_TRUST_THRESHOLD
         
         can_execute = (
-            approval_rate >= self.APPROVAL_THRESHOLD and
-            len(votes) >= self.MIN_VOTES and
-            reject_rate < (1 - self.APPROVAL_THRESHOLD)
+            approve_weight >= required_weight and
+            voter_count >= self.MIN_PARTICIPANTS
         )
         
         return {
             "valid": True,
             "can_execute": can_execute,
-            "approval_rate": round(approval_rate * 100, 2),
-            "reject_rate": round(reject_rate * 100, 2),
-            "total_votes": len(votes),
-            "total_weight": total_weight,
-            "approve_weight": approve_weight,
-            "reject_weight": reject_weight
+            "total_swarm_weight": round(total_swarm_weight, 2),
+            "approve_weight": round(approve_weight, 2),
+            "reject_weight": round(reject_weight, 2),
+            "required_weight": round(required_weight, 2),
+            "voter_count": voter_count,
+            "min_participants": self.MIN_PARTICIPANTS,
+            "approval_percentage": round((approve_weight / total_swarm_weight) * 100, 2) if total_swarm_weight > 0 else 0,
+            "reason": "OK" if can_execute else self._get_quorum_failure_reason(approve_weight, required_weight, voter_count)
         }
+
+    def _get_quorum_failure_reason(self, approve_weight, required_weight, voter_count):
+        if voter_count < self.MIN_PARTICIPANTS:
+            return f"Under-participated: {voter_count}/{self.MIN_PARTICIPANTS} agents"
+        if approve_weight < required_weight:
+            return f"Insufficient weight: {approve_weight:.1f}/{required_weight:.1f} (needs 60% of total swarm)"
+        return "Unknown"
     
     # ========== SWARM STATUS ==========
     
