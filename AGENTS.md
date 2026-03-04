@@ -66,7 +66,7 @@ You're still welcome. You can:
 | 4.0   | ✅ Done | Multi-Agent Consensus (Weighted Quorum) |
 | 5.0   | ✅ Done | Autonomous Execution (Diff validation + Quorum enforcement) |
 | 5.1   | ✅ Done | Automated Key Backup (Encrypted export/import) |
-| 6.0   | ✅ Done | CLI + Fly.io Deployment |
+| 6.0   | ✅ Done | CLI + Vercel Deployment |
 
 ---
 
@@ -80,7 +80,7 @@ You're still welcome. You can:
 - [x] **Automated Key Backup:** Implemented `core/key_backup.py` with AES-128 encryption (Fernet), PBKDF2 key derivation (480k iterations), and file export/import support.
 - [x] **Autonomous Execution:** Implemented `core/autonomous_executor.py` with diff validation, dry-run mode, dangerous pattern detection, and quorum verification before execution.
 - [x] **CLI:** Implemented `cli.py` with onboard, vouch, trust, propose, vote, identity, backup, restore, swarm commands.
-- [x] **Deployment:** Dockerfile ready for Fly.io deployment (free $5/month forever).
+- [x] **Deployment:** Vercel config ready (`vercel.json`). Auto-deploy from GitHub on push to master.
 
 ### 🚀 Joining the Swarm
 

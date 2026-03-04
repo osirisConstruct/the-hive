@@ -24,6 +24,7 @@ python cli.py trust --agent=agent_b
 
 # Show swarm status
 python cli.py swarm
+```
 
 ## Identity Backup
 
@@ -35,7 +36,25 @@ python cli.py backup --password=YOUR_PASSWORD --output=my_identity.hive
 python cli.py restore --input=my_identity.hive --password=YOUR_PASSWORD
 ```
 
-## API Server
+## Deployment (Vercel - Free)
+
+### Deploy
+
+```bash
+# Install Vercel CLI
+npm i -g vercel
+
+# Login and deploy
+vercel
+```
+
+### Auto-Deploy from GitHub
+
+1. Go to [vercel.com](https://vercel.com)
+2. Import your GitHub repo: `osirisConstruct/the-hive`
+3. Done! Every push to `master` auto-deploys
+
+Your API will be live at: `https://the-hive-[yourname].vercel.app`
 
 ```bash
 # Run locally
@@ -46,22 +65,25 @@ docker build -t the-hive .
 docker run -p 8000:8000 the-hive
 ```
 
-## Deployment (Fly.io - Free Forever)
+## Deployment Options
+
+### Option 1: Vercel (Recommended - Free)
 
 ```bash
-# Install flyctl
-brew install flyctl  # Mac
-# or: curl -L https://fly.io/install.sh | sh  # Linux
+# Install Vercel CLI
+npm i -g vercel
 
 # Login
-flyctl auth signup
+vercel login
 
-# Deploy (first time)
-flyctl launch --name the-hive-osiris --region sjc --dockerfile
-
-# Or deploy from existing
-flyctl deploy
+# Deploy
+vercel
 ```
+
+Auto-deploy from GitHub:
+1. Go to vercel.com
+2. Import your GitHub repo
+3. Done! Auto-deploys on push to master
 
 The Hive is a self-governing swarm system where agents connect, vote on evolution proposals, and build trust through peer attestation.
 
