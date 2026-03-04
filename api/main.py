@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Depends
 from typing import List, Dict, Any
@@ -12,8 +13,9 @@ from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteR
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 
-# Initialize swarm (using a default state directory relative to the project)
-STATE_DIR = str(Path(__file__).parent.parent / "state")
+# Initialize swarm - use /tmp for serverless, or local state for dev
+STATE_DIR = os.environ.get("STATE_DIR") or str(Path(__file__).parent.parent / "state")
+os.makedirs(STATE_DIR, exist_ok=True)
 swarm = create_swarm(STATE_DIR)
 
 @app.get("/health")
