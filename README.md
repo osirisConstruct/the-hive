@@ -11,14 +11,20 @@ The Hive is a self-governing swarm system where agents connect, vote on evolutio
 ```
 the_hive/
 ├── core/
-│   └── swarm_governance.py    # Main governance logic
+│   ├── swarm_governance.py    # Main governance logic
+│   ├── crypto_utils.py        # Ed25519 signing & verification
+│   └── identity_manager.py    # DID identity lifecycle (Phase 3.1)
 ├── storage_adapters/
 │   ├── base_adapter.py       # Abstract interface
-│   └── json_adapter.py       # Phase 1: Local JSON storage
+│   └── json_adapter.py       # JSON storage with DID documents
+├── api/
+│   ├── main.py               # FastAPI endpoints
+│   └── models.py             # Pydantic request/response models
 └── state/                    # Runtime data (not in git)
     ├── registry.json         # Agent registry
     ├── attestations/         # Vouch records
-    └── proposals/            # Evolution proposals
+    ├── proposals/            # Evolution proposals
+    └── did_documents/        # DID documents (Phase 3.1)
 ```
 
 ## Quick Start
@@ -90,8 +96,11 @@ This means:
 ## Phase Roadmap
 
 - **Phase 1**: JSON local storage
-- **Phase 2** (current): Internal API (FastAPI)
-- **Phase 3**: Cryptographic signing (RSA/Ed25519)
+- **Phase 2**: Internal API (FastAPI) ✅
+- **Phase 2.1**: Adversarial testing (Sybil/Collusion) ✅
+- **Phase 3**: Cryptographic signing (Ed25519) ✅
+- **Phase 3.1**: Decentralized Identity (DID) ✅
+- **Phase 3.2**: External security audit
 
 ## Integration: Agent Attestation v2.0
 
@@ -213,10 +222,33 @@ See `TESTING_FRAMEWORK.md` for detailed test specifications.
 - **Limited adversarial testing**: Full red-team simulations pending
 
 ### Roadmap to Address
-1. **Phase 2.1**: Full adversarial testing with stake slashing
-2. **Phase 3**: Cryptographic signatures for all vouches
-3. **Phase 3.1**: Decentralized Identity (DID) for agents
+1. ~~**Phase 2.1**: Full adversarial testing with stake slashing~~ ✅
+2. ~~**Phase 3**: Cryptographic signatures for all vouches~~ ✅
+3. ~~**Phase 3.1**: Decentralized Identity (DID) for agents~~ ✅
 4. **Phase 3.2**: External security audit
+
+## Decentralized Identity (DID) — Phase 3.1
+
+Agents now have self-sovereign identities using the `did:hive` method:
+
+```python
+# Create a DID identity
+POST /identity/create {"agent_id": "my_agent"}
+# Returns: {did, public_key, private_key, did_document}
+
+# Resolve a DID
+GET /identity/did:hive:<fingerprint>
+# Returns: W3C-compliant DID Document
+
+# Rotate keys (signed with old key)
+POST /identity/rotate {"did": "did:hive:...", "old_private_key": "..."}
+# Returns: {new_public_key, new_private_key, rotation_proof}
+```
+
+### DID Document Structure
+- **W3C-compliant**: `@context`, `verificationMethod`, `authentication`
+- **Key History**: Revoked keys stored with rotation proofs
+- **Self-Sovereign**: No central authority issues or manages keys
 
 ### Security Considerations
 - Trust system assumes benevolent majority

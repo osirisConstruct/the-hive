@@ -68,6 +68,7 @@ class JSONAdapter(BaseAdapter):
         # Ensure directories exist
         (self.state_dir / "attestations").mkdir(exist_ok=True)
         (self.state_dir / "proposals").mkdir(exist_ok=True)
+        (self.state_dir / "did_documents").mkdir(exist_ok=True)
         
         # Store hybrid ratios (configurable by domain)
         self.hybrid_ratios = hybrid_ratios or self.DEFAULT_HYBRID_RATIOS
@@ -196,6 +197,47 @@ class JSONAdapter(BaseAdapter):
         registry = self._load_json(self.registry_file)
         return list(registry.get("agents", {}).values())
     
+    # ========== DID DOCUMENTS (Phase 3.1) ==========
+    
+    def store_did_document(self, did: str, did_document: dict) -> bool:
+        """Store a DID Document for an agent."""
+        safe_name = did.replace(":", "_")
+        filepath = self.state_dir / "did_documents" / f"{safe_name}.json"
+        self._save_json(filepath, did_document)
+        return True
+    
+    def get_did_document(self, did: str) -> Optional[Dict]:
+        """Resolve a DID to its document."""
+        safe_name = did.replace(":", "_")
+        filepath = self.state_dir / "did_documents" / f"{safe_name}.json"
+        return self._load_json(filepath)
+    
+    def update_did_document(self, did: str, did_document: dict) -> bool:
+        """Update an existing DID Document (e.g., after key rotation)."""
+        safe_name = did.replace(":", "_")
+        filepath = self.state_dir / "did_documents" / f"{safe_name}.json"
+        if not filepath.exists():
+            return False
+        self._save_json(filepath, did_document)
+        return True
+    
+    def link_did_to_agent(self, agent_id: str, did: str) -> bool:
+        """Link a DID to an agent record in the registry."""
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                registry, version = self._read_with_version(self.registry_file)
+                agent = registry.get("agents", {}).get(agent_id)
+                if not agent:
+                    return False
+                agent["did"] = did
+                self._conditional_write(self.registry_file, registry, version)
+                return True
+            except OptimisticLockError:
+                if attempt == self.MAX_RETRIES - 1:
+                    raise
+                time.sleep(0.01 * (attempt + 1))
+        return False
+
     # ========== TRUST & VOUCHES ==========
     
     def _calculate_decay_factor(self, last_activity_iso: str) -> float:

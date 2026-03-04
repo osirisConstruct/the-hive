@@ -7,7 +7,8 @@ from typing import List, Dict, Any
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.swarm_governance import create_swarm
-from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteRequest, StakeRequest
+from core.identity_manager import IdentityManager
+from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteRequest, StakeRequest, DIDCreateRequest, KeyRotationRequest
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 
@@ -142,3 +143,68 @@ def add_stake(agent_id: str, req: StakeRequest):
     if not success:
         raise HTTPException(status_code=400, detail="Failed to add stake")
     return {"message": f"Added {req.amount} stake to {agent_id}"}
+
+# ---------- IDENTITY ENDPOINTS (Phase 3.1) ----------
+
+@app.post("/identity/create", status_code=201)
+def create_identity(req: DIDCreateRequest):
+    """Create a new decentralized identity for an agent."""
+    identity = IdentityManager.create_identity(req.agent_id)
+    
+    # Store the DID Document
+    swarm.adapter.store_did_document(identity["did"], identity["did_document"])
+    
+    # Link the DID to the agent if they exist
+    swarm.adapter.link_did_to_agent(req.agent_id, identity["did"])
+    
+    return {
+        "did": identity["did"],
+        "public_key": identity["public_key"],
+        "private_key": identity["private_key"],
+        "did_document": identity["did_document"],
+        "message": f"Identity created for {req.agent_id}"
+    }
+
+@app.get("/identity/{did:path}")
+def resolve_did(did: str):
+    """Resolve a DID to its DID Document."""
+    doc = swarm.adapter.get_did_document(did)
+    if not doc:
+        raise HTTPException(status_code=404, detail="DID not found")
+    return doc
+
+@app.post("/identity/rotate")
+def rotate_key(req: KeyRotationRequest):
+    """Rotate the cryptographic key for a DID."""
+    doc = swarm.adapter.get_did_document(req.did)
+    if not doc:
+        raise HTTPException(status_code=404, detail="DID not found")
+    
+    try:
+        result = IdentityManager.rotate_key(doc, req.old_private_key)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Key rotation failed: {str(e)}")
+    
+    # Update the DID Document
+    swarm.adapter.update_did_document(req.did, result["did_document"])
+    
+    # Update the agent's public key in the registry
+    agent_id = doc.get("metadata", {}).get("agent_id")
+    if agent_id:
+        agent = swarm.get_agent(agent_id)
+        if agent:
+            for attempt in range(3):
+                try:
+                    registry, version = swarm.adapter._read_with_version(swarm.adapter.registry_file)
+                    registry["agents"][agent_id]["public_key"] = result["new_public_key"]
+                    swarm.adapter._conditional_write(swarm.adapter.registry_file, registry, version)
+                    break
+                except:
+                    pass
+    
+    return {
+        "message": "Key rotated successfully",
+        "new_public_key": result["new_public_key"],
+        "new_private_key": result["new_private_key"],
+        "rotation_proof": result["rotation_proof"]
+    }

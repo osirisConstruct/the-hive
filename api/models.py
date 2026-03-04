@@ -30,3 +30,10 @@ class VoteRequest(BaseModel):
 
 class StakeRequest(BaseModel):
     amount: float = Field(..., gt=0)
+
+class DIDCreateRequest(BaseModel):
+    agent_id: str
+
+class KeyRotationRequest(BaseModel):
+    did: str
+    old_private_key: str  # Base64 encoded old private key (proof of ownership)
