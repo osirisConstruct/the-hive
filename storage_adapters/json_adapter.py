@@ -364,11 +364,48 @@ class JSONAdapter(BaseAdapter):
                 if to_agent in agents:
                     adjacency[agent].add(to_agent)
         
-        # Find cliques (simplified - find all mutually-connected groups)
+        # Find cliques (Symmetry-based and Cyclic)
         cliques = []
         cliques.extend(self._find_cliques_bronkerosch(adjacency, min_size))
         
+        # Add Cycle Detection for directed rings
+        cycles = self._find_cycles(adjacency, min_size)
+        for cycle in cycles:
+            if cycle not in [set(c["members"]) for c in cliques]:
+                cliques.append({
+                    "members": list(cycle),
+                    "size": len(cycle),
+                    "type": "collusion_cycle"
+                })
+        
         return cliques
+
+    def _find_cycles(self, adjacency: Dict, min_size: int) -> List[set]:
+        """Simple DFS to find cycles in a directed graph."""
+        cycles = []
+        
+        def dfs(start_node, current_node, visited, path):
+            for neighbor in adjacency.get(current_node, set()):
+                if neighbor == start_node:
+                    if len(path) >= min_size:
+                        cycles.append(set(path))
+                    continue
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    path.append(neighbor)
+                    dfs(start_node, neighbor, visited, path)
+                    path.pop()
+                    visited.remove(neighbor)
+
+        for node in adjacency:
+            dfs(node, node, {node}, [node])
+            
+        # Deduplicate sets
+        unique_cycles = []
+        for c in cycles:
+            if c not in unique_cycles:
+                unique_cycles.append(c)
+        return unique_cycles
     
     def _find_cliques_bronkerosch(self, adjacency: Dict, min_size: int) -> List[Dict]:
         """Simplified clique detection - find all maximal cliques."""
@@ -452,12 +489,17 @@ class JSONAdapter(BaseAdapter):
         return results
     
     def _calculate_trust_recursive(self, agent_id: str, visited: set) -> float:
-        """Calculate trust with cycle detection."""
+        """Calculate trust with rooted dampening and cycle detection."""
         if agent_id in visited:
             return 0.0
         
         visited.add(agent_id)
         
+        # Check if agent is "pre-trusted" (seed)
+        agent = self.get_agent(agent_id)
+        if agent and agent.get("metadata", {}).get("pre_trusted"):
+            return 100.0
+
         vouches = self.get_vouches(agent_id)
         if not vouches:
             return 0.0
@@ -465,24 +507,38 @@ class JSONAdapter(BaseAdapter):
         total_weighted = 0
         total_weight = 0
         
+        # Path to root check: we only trust agents that have some connectivity to a trusted source
+        max_voucher_trust = 0
+        
         for vouch in vouches:
             voucher_id = vouch["from_agent"]
             
-            # Get voucher's trust, default to 30 if no vouches (bootstrap trust)
-            if voucher_id == agent_id:  # Self-vouch
-                voucher_trust = 30
+            # Get voucher's trust
+            if voucher_id == agent_id:
+                voucher_trust = 0 # No self-trust bootstrap
             else:
                 voucher_trust = self._calculate_trust_recursive(voucher_id, visited.copy())
-                if voucher_trust == 0:
-                    voucher_trust = 30  # Bootstrap trust
             
+            # If voucher has no trust and isn't a known bootstrap agent, it provides 0 trust flow
+            # Unless it's a "Seed Agent" registered by the architect
+            if voucher_trust == 0:
+                # Check for bootstrap trust only if voucher is legitimately onboarded with high initial stake
+                # For now, we use a strict "No Root, No Trust" policy for Phase 2.1
+                continue
+                
             total_weighted += vouch["score"] * voucher_trust
             total_weight += voucher_trust
+            max_voucher_trust = max(max_voucher_trust, voucher_trust)
         
         if total_weight == 0:
             return 0.0
         
-        score = total_weighted / total_weight
+        # Damping factor: trust is capped by the strength of the best voucher
+        # This prevents sybil rings from amplifying themselves without a root
+        base_score = total_weighted / total_weight
+        dampening = max_voucher_trust / 100.0
+        
+        score = base_score * dampening
         return min(100.0, round(score, 2))
     
     # Default domains for attestations

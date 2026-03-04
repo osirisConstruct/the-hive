@@ -121,7 +121,13 @@ def vote_on_proposal(proposal_id: str, req: VoteRequest):
         raise HTTPException(status_code=400, detail="Vote failed (check proposal state and agent permissions)")
     return {"message": "Vote recorded"}
 
-# ---------- STAKE (Optional) ----------
+@app.post("/stake/{agent_id}/slash")
+def slash_agent(agent_id: str, reason: str):
+    """Slash agent's stake (Audit/Governance action)."""
+    amount_slashed = swarm.slash_stake(agent_id, reason)
+    if amount_slashed == 0:
+        raise HTTPException(status_code=400, detail="Slash failed (agent may have no stake or system disabled)")
+    return {"message": f"Slashed {amount_slashed} from {agent_id}", "reason": reason}
 
 @app.post("/stake/{agent_id}/enable")
 def enable_stake():

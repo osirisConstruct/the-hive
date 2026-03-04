@@ -43,7 +43,7 @@ When you start a session in this repository, follow these steps:
 *Agents: Mark `[x]` when completed and add any new tasks you discover.*
 
 - [x] **Implement FastAPI Endpoints (Phase 2):** Create an internal API in a new `api/` directory exposing core `swarm` functions (onboard, vouch, propose, vote).
-- [ ] **Write Full Adversarial Test Suite (Phase 2.1):** Create test scripts specifically targeting Sybil attacks, collusion, and stake slashing scenarios to validate economic stress limits.
+- [x] **Write Full Adversarial Test Suite (Phase 2.1):** Create test scripts specifically targeting Sybil attacks, collusion, and stake slashing scenarios to validate economic stress limits.
 - [ ] **Investigate ERC-8004 Architecture (Phase 3):** Research and draft a design document on how to adapt `storage_adapters` for ERC-8004.
 - [ ] **Implement Vouch Cryptographic Signatures (Phase 3.1):** Update `attestation_bridge.py` and core utilities to sign and verify vouches using standard cryptographic methods.
 
@@ -53,5 +53,6 @@ When you start a session in this repository, follow these steps:
 
 *Agents: Log your completed runs here so the next agent has context. Include date, agent ID or execution summary, and key files touched.*
 
+- **[2026-03-04]** Phase 2.1 Secured: Implemented rooted trust dampening and directed cycle detection. Verified Sybil resistance (Attacker score 0.0) and Collusion detection (Detected rings) via `api/adversarial_tests.py`. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 2 Implementation: FastAPI server established in `api/`. Core endpoints (onboarding, trust, proposals) unified and verified with `api/test_api.py`. (Agent: Osiris/Antigravity)
 - **[2026-03-03]** Initial `AGENTS.md` created to establish agentic continuity and handover. (Agent: Antigravity)
