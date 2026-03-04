@@ -23,33 +23,23 @@ jobs:
         python -m pip install --upgrade pip
         pip install fastapi uvicorn pydantic cryptography requests
 
-    - name: Run Cryptographic Integrity Tests
+    - name: Run All Tests
       run: |
-        echo "Running Phase 3 Crypto API tests..."
-        # Start server in background
+        echo "Starting API server..."
         python -m uvicorn api.main:app --host 127.0.0.1 --port 8000 &
         SERVER_PID=$!
-        sleep 3
+        sleep 5
         
-        # Run tests
-        python api/test_crypto_api.py
+        echo "Running Phase 3 Crypto API tests..."
+        python api/test_crypto_api.py || exit 1
         
-        # We don't kill the server here because the next tests need it
-        
-    - name: Run Decentralized Identity (DID) Tests
-      run: |
         echo "Running Phase 3.1 DID API tests..."
-        python api/test_did_api.py
+        python api/test_did_api.py || exit 1
         
-    - name: Run Adversarial Security Tests
-      run: |
         echo "Running Phase 2.1 Adversarial tests..."
-        python api/adversarial_tests.py
+        python api/adversarial_tests.py || exit 1
 
-    - name: Run Red Team Security Audit
-      run: |
         echo "Running Phase 3.2 Red Team Audit..."
-        python scripts/security_audit.py
+        python scripts/security_audit.py || exit 1
         
-        # Kill the background server
-        pkill -f "uvicorn api.main:app" || true
+        kill $SERVER_PID
