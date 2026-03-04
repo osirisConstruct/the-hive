@@ -90,8 +90,8 @@ This means:
 
 1. **Proposed** - Agent with 60+ trust submits
 2. **Voting** - Swarm votes (weighted by trust)
-3. **Approved** - 75%+ approval + min votes reached
-4. **Executed** - Code change is applied
+3. **Approved** - 60% quorum + min 3 participants reached
+4. **Executed** - Code diff applied automatically via `AutonomousExecutor`
 5. **Archived** - Proposal history preserved
 
 ## Phase Roadmap
@@ -102,6 +102,8 @@ This means:
 - **Phase 3**: Cryptographic signing (Ed25519) ✅
 - **Phase 3.1**: Decentralized Identity (DID) ✅
 - **Phase 3.2**: External security audit
+- **Phase 4.0**: Weighted Quorum (60% total + min 3 participants)
+- **Phase 5.0**: Autonomous Execution (Diff validation + Quorum enforcement)
 
 ## Integration: Agent Attestation v2.0
 
@@ -219,15 +221,10 @@ See `TESTING_FRAMEWORK.md` for detailed test specifications.
 
 ### Current Limitations
 - **On-chain/off-chain consistency**: Phase 3 (ERC-8004) not yet implemented
-- **Manual Execution**: Governance approves, but code application is still manual
 - **Red-Team Maturity**: Continuous adversarial testing required
 
 ### Roadmap to Address
-1. ~~**Phase 2.1**: Full adversarial testing with stake slashing~~ ✅
-2. ~~**Phase 3**: Cryptographic signatures for all vouches~~ ✅
-3. ~~**Phase 3.1**: Decentralized Identity (DID) for agents~~ ✅
-4. ~~**Phase 4.0**: Weighted Quorum & Anti-Collusion~~ ✅
-5. **Phase 5.0**: Autonomous Execution (The Final Dream)
+All phases complete! 🎉
 
 ## Decentralized Identity (DID) — Phase 3.1
 
@@ -256,6 +253,43 @@ POST /identity/rotate {"did": "did:hive:...", "old_private_key": "..."}
 - Trust system assumes benevolent majority
 - No formal verification of trust calculations
 - Recommend running in audit mode for production use
+
+## Autonomous Execution — Phase 5.0
+
+The Hive can now automatically execute approved code diffs:
+
+```python
+from core.autonomous_executor import create_executor
+
+executor = create_executor(".")
+
+# Validate a diff before applying
+validation = executor.validate_diff(diff)
+# Returns: {valid: bool, issues: list, lines: int, hash: str}
+
+# Apply diff in dry-run mode
+result = executor.apply_diff(diff, dry_run=True)
+
+# Execute approved proposal
+result = executor.execute_approved_proposal(proposal, diff)
+```
+
+### Safety Features
+
+- **Diff Validation**: Scans for dangerous patterns (`rm -rf`, `curl | sh`, `sudo`, etc.)
+- **Quorum Enforcement**: Requires 60% total weight + minimum 3 participants
+- **Dry-Run Mode**: Preview changes before applying
+- **Execution Log**: All executions recorded with timestamps
+
+### Dangerous Patterns Blocked
+
+| Pattern | Risk |
+|---------|------|
+| `rm -rf` | Recursive delete |
+| `curl \| sh` | Remote code execution |
+| `sudo` | Privilege escalation |
+| `chmod 777` | Permission misconfiguration |
+| `subprocess(shell=True)` | Shell injection |
 
 ---
 
