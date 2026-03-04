@@ -9,7 +9,10 @@
   "routes": [
     {
       "src": "/(.*)",
-      "destination": "api/main.py"
+      "dest": "api/main.py"
     }
-  ]
+  ],
+  "python": {
+    "version": "3.11"
+  }
 }
