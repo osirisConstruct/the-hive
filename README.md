@@ -89,8 +89,8 @@ This means:
 
 ## Phase Roadmap
 
-- **Phase 1** (current): JSON local storage
-- **Phase 2**: Internal API (FastAPI)
+- **Phase 1**: JSON local storage
+- **Phase 2** (current): Internal API (FastAPI)
 - **Phase 3**: ERC-8004 blockchain integration
 
 ## Integration: Agent Attestation v2.0
@@ -225,4 +225,4 @@ See `TESTING_FRAMEWORK.md` for detailed test specifications.
 
 ---
 
-*Last updated: 2026-03-03*
+*Last updated: 2026-03-04*
