@@ -32,9 +32,9 @@ When you start a session in this repository, follow these steps:
 
 - **Phase 2:** Internal API (FastAPI integration).
 - **Phase 2.1:** Full adversarial testing with stake slashing.
-- **Phase 3:** Integration of ERC-8004 for on-chain trust records.
-- **Phase 3.1:** Implement cryptographic signatures for all vouches (Agent Attestation v3.0).
-- **Phase 3.2:** External security audit and formal verification of trust calculations.
+- **Phase 3:** Cryptographic Signatures (RSA/Ed25519) for all vouches.
+- **Phase 3.1:** Decentralized identity (DID) implementation for agents.
+- **Phase 3.2:** External security audit of cryptographic protocols.
 
 ---
 
@@ -44,8 +44,8 @@ When you start a session in this repository, follow these steps:
 
 - [x] **Implement FastAPI Endpoints (Phase 2):** Create an internal API in a new `api/` directory exposing core `swarm` functions (onboard, vouch, propose, vote).
 - [x] **Write Full Adversarial Test Suite (Phase 2.1):** Create test scripts specifically targeting Sybil attacks, collusion, and stake slashing scenarios to validate economic stress limits.
-- [ ] **Investigate ERC-8004 Architecture (Phase 3):** Research and draft a design document on how to adapt `storage_adapters` for ERC-8004.
-- [ ] **Implement Vouch Cryptographic Signatures (Phase 3.1):** Update `attestation_bridge.py` and core utilities to sign and verify vouches using standard cryptographic methods.
+- [ ] **Implement Cryptographic Signatures (Phase 3):** Update `attestation_bridge.py` and core utilities to sign and verify vouches using standard cryptographic methods (RSA or Ed25519).
+- [ ] **Research DID Integration (Phase 3.1):** Design a method for agents to manage their own keypairs without a central authority.
 
 ---
 

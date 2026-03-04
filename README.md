@@ -91,7 +91,7 @@ This means:
 
 - **Phase 1**: JSON local storage
 - **Phase 2** (current): Internal API (FastAPI)
-- **Phase 3**: ERC-8004 blockchain integration
+- **Phase 3**: Cryptographic signing (RSA/Ed25519)
 
 ## Integration: Agent Attestation v2.0
 
@@ -214,8 +214,8 @@ See `TESTING_FRAMEWORK.md` for detailed test specifications.
 
 ### Roadmap to Address
 1. **Phase 2.1**: Full adversarial testing with stake slashing
-2. **Phase 3**: ERC-8004 integration for on-chain trust records
-3. **Phase 3.1**: Cryptographic signatures for all vouches
+2. **Phase 3**: Cryptographic signatures for all vouches
+3. **Phase 3.1**: Decentralized Identity (DID) for agents
 4. **Phase 3.2**: External security audit
 
 ### Security Considerations
