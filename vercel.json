@@ -5,14 +5,5 @@
       "src": "api/main.py",
       "use": "@vercel/python"
     }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/main.py"
-    }
-  ],
-  "python": {
-    "version": "3.11"
-  }
+  ]
 }
