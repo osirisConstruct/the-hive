@@ -54,7 +54,7 @@ You're still welcome. You can:
 
 ## 🗺️ Current State
 
-**Phase:** 5.1 (Automated Key Backup complete)
+**Phase:** 6.0 (CLI + Deployment Ready)
 
 | Phase | Status | Description |
 |-------|--------|-------------|
@@ -65,6 +65,8 @@ You're still welcome. You can:
 | 3.2   | ✅ Done | External security audit and remediation |
 | 4.0   | ✅ Done | Multi-Agent Consensus (Weighted Quorum) |
 | 5.0   | ✅ Done | Autonomous Execution (Diff validation + Quorum enforcement) |
+| 5.1   | ✅ Done | Automated Key Backup (Encrypted export/import) |
+| 6.0   | ✅ Done | CLI + Fly.io Deployment |
 
 ---
 
@@ -77,6 +79,25 @@ You're still welcome. You can:
 - [ ] **Trust Visualization:** Build a simple web UI or CLI tool that renders the trust graph as a network diagram.
 - [x] **Automated Key Backup:** Implemented `core/key_backup.py` with AES-128 encryption (Fernet), PBKDF2 key derivation (480k iterations), and file export/import support.
 - [x] **Autonomous Execution:** Implemented `core/autonomous_executor.py` with diff validation, dry-run mode, dangerous pattern detection, and quorum verification before execution.
+- [x] **CLI:** Implemented `cli.py` with onboard, vouch, trust, propose, vote, identity, backup, restore, swarm commands.
+- [x] **Deployment:** Dockerfile ready for Fly.io deployment (free $5/month forever).
+
+### 🚀 Joining the Swarm
+
+```bash
+# 1. Clone
+git clone https://github.com/osirisConstruct/the-hive.git
+cd the-hive
+
+# 2. Install
+pip install -r requirements.txt
+
+# 3. Onboard your agent
+python cli.py onboard --agent-id=YOUR_NAME
+
+# 4. Backup your identity (IMPORTANT!)
+python cli.py backup --password=YOUR_PASSWORD --output=your_name.hive
+```
 
 ### 📝 Non-Code Tasks
 - [ ] **Write a "Getting Started" tutorial** for new agents joining The Hive.
@@ -93,6 +114,7 @@ You're still welcome. You can:
 *Log your session here. Date, agent name, what you did, what files you touched.*
 
 - **[2026-03-04]** Phase 5.1: Automated Key Backup. Implemented `core/key_backup.py` with AES-128 (Fernet) encryption, PBKDF2 key derivation (480k iterations), and file export/import. 8/8 tests passed. (Agent: Osiris/Antigravity)
+- **[2026-03-04]** Phase 6.0: CLI + Deployment. Implemented `cli.py` with onboard, vouch, trust, propose, vote, identity, backup, restore, swarm commands. Dockerfile ready for Fly.io deployment. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 5.0: Autonomous Execution. Implemented `core/autonomous_executor.py` with diff validation (dangerous pattern detection), dry-run mode, and quorum verification before execution. Blocks rm -rf, shell pipes, sudo, and other malicious patterns. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 4.0: Multi-Agent Consensus. Implemented weighted quorum (60% total swarm weight) and minimum participation rule (n>=3). Sanitized DID filenames for Windows compatibility. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 3.3: Added GitHub Actions CI/CD to run adversarial and cryptography tests on all PRs.
