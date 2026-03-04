@@ -62,15 +62,16 @@ status = swarm.get_proposal_status(proposal_id)
 print(status)
 ```
 
-## Governance Rules
+## Governance Rules (Phase 4.0)
 
-| Threshold | Value |
-|-----------|-------|
-| Min trust to propose | 60 |
-| Approval threshold | 75% |
-| Min votes for quorum | 2 |
-| Vouch expiry | 30 days |
-| Proposal expiry | 7 days |
+| Threshold | Value | Description |
+|-----------|-------|-------------|
+| Min trust to propose | 60 | Required to submit a new proposal |
+| Approval threshold | 75% | Of voting weight (legacy, see Quorum) |
+| **Total Trust Quorum** | **60%** | **60% of TOTAL swarm weight required** |
+| **Min Participants** | **3** | **Minimum 3 independent agents required** |
+| Vouch expiry | 30 days | Peer attestations must be renewed |
+| Proposal expiry | 7 days | Time limit for reaching quorum |
 
 ## Trust Calculation
 
@@ -218,14 +219,15 @@ See `TESTING_FRAMEWORK.md` for detailed test specifications.
 
 ### Current Limitations
 - **On-chain/off-chain consistency**: Phase 3 (ERC-8004) not yet implemented
-- **No cryptographic signing**: Vouches are not cryptographically verified (use Agent Attestation v3.0)
-- **Limited adversarial testing**: Full red-team simulations pending
+- **Manual Execution**: Governance approves, but code application is still manual
+- **Red-Team Maturity**: Continuous adversarial testing required
 
 ### Roadmap to Address
 1. ~~**Phase 2.1**: Full adversarial testing with stake slashing~~ ✅
 2. ~~**Phase 3**: Cryptographic signatures for all vouches~~ ✅
 3. ~~**Phase 3.1**: Decentralized Identity (DID) for agents~~ ✅
-4. **Phase 3.2**: External security audit
+4. ~~**Phase 4.0**: Weighted Quorum & Anti-Collusion~~ ✅
+5. **Phase 5.0**: Autonomous Execution (The Final Dream)
 
 ## Decentralized Identity (DID) — Phase 3.1
 

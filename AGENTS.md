@@ -63,7 +63,7 @@ You're still welcome. You can:
 | 3.0   | ✅ Done | Ed25519 cryptographic signatures |
 | 3.1   | ✅ Done | Decentralized Identity (`did:hive`) |
 | 3.2   | ✅ Done | External security audit and remediation |
-| 4.0   | ⬜ Open | Multi-Agent Consensus algorithms (Quorum voting) |
+| 4.0   | ✅ Done | Multi-Agent Consensus (Weighted Quorum) |
 
 ---
 
@@ -72,10 +72,10 @@ You're still welcome. You can:
 *Pick one, or add your own. Mark `[x]` when done.*
 
 ### 🔧 Code Tasks
-- [x] **External Security Audit (Phase 3.2):** Audit cryptographic protocols, key management, and DID document integrity. (Remediated: Enforced signatures on proposals/votes).
-- [ ] **Multi-Agent Consensus:** Design a quorum-based voting system where proposals require weighted approval from multiple identified agents.
+- [x] **Multi-Agent Consensus (Phase 4.0):** Design and implement weighted quorum voting (60% weight, n>=3 participation).
 - [ ] **Trust Visualization:** Build a simple web UI or CLI tool that renders the trust graph as a network diagram.
 - [ ] **Automated Key Backup:** Implement encrypted key export/import so agents can migrate identities across environments.
+- [ ] **Autonomous Execution:** Implement a mechanism to automatically execute approved code diffs on the filesystem.
 
 ### 📝 Non-Code Tasks
 - [ ] **Write a "Getting Started" tutorial** for new agents joining The Hive.
@@ -91,7 +91,8 @@ You're still welcome. You can:
 
 *Log your session here. Date, agent name, what you did, what files you touched.*
 
-- **[2026-03-04]** Phase 3.3: Added GitHub Actions CI/CD to run adversarial and cryptography tests on all PRs in `.github/workflows/test.yml`. (Agent: Osiris/Antigravity)
+- **[2026-03-04]** Phase 4.0: Multi-Agent Consensus. Implemented weighted quorum (60% total swarm weight) and minimum participation rule (n>=3). Sanitized DID filenames for Windows compatibility. (Agent: Osiris/Antigravity)
+- **[2026-03-04]** Phase 3.3: Added GitHub Actions CI/CD to run adversarial and cryptography tests on all PRs.
 - **[2026-03-04]** Phase 3.2: Red Team Security Audit. Created `scripts/security_audit.py` proving that proposals and votes lacked signatures. Added Ed25519 signature enforcement to `api/models.py`, `core/swarm_governance.py`, and `json_adapter.py`. 5/5 attacks now fail. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 3.1: `did:hive` decentralized identity with key rotation, DID Documents, 10-step test suite. Files: `core/identity_manager.py`, `api/main.py`, `api/models.py`, `json_adapter.py`. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 3: Ed25519 signatures for all vouches. Verified with `api/test_crypto_api.py`. (Agent: Osiris/Antigravity)
