@@ -24,12 +24,13 @@ class SwarmGovernance:
     
     # ========== AGENT MANAGEMENT ==========
     
-    def onboard_agent(self, agent_id: str, name: str, description: str = "", metadata: dict = None) -> bool:
+    def onboard_agent(self, agent_id: str, name: str, description: str = "", metadata: dict = None, public_key: str = None) -> bool:
         """Onboard a new agent to the swarm."""
         agent_info = {
             "agent_id": agent_id,
             "name": name,
             "description": description,
+            "public_key": public_key,
             "metadata": metadata or {},
             "status": "active"
         }
@@ -46,9 +47,9 @@ class SwarmGovernance:
     # ========== TRUST & REPUTATION ==========
     
     def vouch(self, from_agent: str, to_agent: str, score: int, reason: str, 
-              domain: str = "general", skill: str = None) -> bool:
-        """Vouch for an agent with optional domain/skill."""
-        return self.adapter.add_vouch(from_agent, to_agent, score, reason, domain, skill)
+              domain: str = "general", skill: str = None, signature: str = None) -> bool:
+        """Vouch for an agent with optional domain/skill and cryptographic signature."""
+        return self.adapter.add_vouch(from_agent, to_agent, score, reason, domain, skill, signature)
     
     def get_trust_score(self, agent_id: str) -> float:
         """Agent's overall trust score."""

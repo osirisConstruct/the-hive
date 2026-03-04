@@ -14,6 +14,7 @@ import hashlib
 import uuid
 
 from .base_adapter import BaseAdapter
+from core.crypto_utils import CryptoUtils
 
 
 class OptimisticLockError(Exception):
@@ -174,6 +175,10 @@ class JSONAdapter(BaseAdapter):
                 agent_info["trust_score"] = 0.0
                 agent_info["vouch_count"] = 0
                 
+                # Public key is mandatory for new agents (Phase 3)
+                if "public_key" not in agent_info:
+                    return False
+                    
                 registry["agents"][agent_id] = agent_info
                 
                 self._conditional_write(self.registry_file, registry, version)
@@ -545,12 +550,36 @@ class JSONAdapter(BaseAdapter):
     DEFAULT_DOMAINS = ["general", "coding", "writing", "research", "ops", "philosophy"]
     
     def add_vouch(self, from_agent: str, to_agent: str, score: int, reason: str, 
-                  domain: str = "general", skill: str = None) -> bool:
-        """Add a vouch for an agent with optimistic locking and domain support."""
+                  domain: str = "general", skill: str = None, signature: str = None) -> bool:
+        """Add a vouch for an agent with optimistic locking and cryptographic verification."""
         # Verify both agents exist
-        if not self.get_agent(from_agent) or not self.get_agent(to_agent):
-            return False
+        from_agent_info = self.get_agent(from_agent)
+        to_agent_info = self.get_agent(to_agent)
         
+        if not from_agent_info or not to_agent_info:
+            return False
+            
+        # Cryptographic verification (Phase 3)
+        if signature:
+            public_key = from_agent_info.get("public_key")
+            if not public_key:
+                return False
+            
+            payload = {
+                "from_agent": from_agent,
+                "to_agent": to_agent,
+                "score": score,
+                "reason": reason,
+                "domain": domain,
+                "skill": skill
+            }
+            
+            if not CryptoUtils.verify_signature(public_key, payload, signature):
+                return False
+        else:
+            if from_agent_info.get("public_key"):
+                return False
+
         if not (0 <= score <= 100):
             return False
         
@@ -563,7 +592,7 @@ class JSONAdapter(BaseAdapter):
         for attempt in range(self.MAX_RETRIES):
             try:
                 attestations = []
-                version = 0  # Start at 0 for new files
+                version = 0
                 if vouch_file.exists():
                     attestations, version = self._read_with_version(vouch_file)
                 
@@ -573,23 +602,17 @@ class JSONAdapter(BaseAdapter):
                     "to_agent": to_agent,
                     "score": score,
                     "reason": reason,
-                    "domain": domain,  # Domain-specific reputation
-                    "skill": skill,   # Optional skill tag
+                    "signature": signature, # Store the signature for audit
+                    "domain": domain,
+                    "skill": skill,
                     "created_at": datetime.utcnow().isoformat(),
                     "expires_at": (datetime.utcnow() + timedelta(days=30)).isoformat()
                 }
                 
                 attestations.append(vouch)
-                
-                # Write with optimistic lock
                 self._conditional_write(vouch_file, attestations, version)
-                
-                # Update trust score in registry (with its own locking)
                 self._update_agent_trust(to_agent, len(attestations))
-                
-                # Update last activity timestamp
                 self._update_agent_activity(to_agent)
-                
                 return True
                 
             except OptimisticLockError:

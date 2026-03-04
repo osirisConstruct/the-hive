@@ -29,6 +29,7 @@ def onboard_agent(req: AgentOnboardRequest):
         agent_id=req.agent_id,
         name=req.name,
         description=req.description,
+        public_key=req.public_key,
         metadata=req.metadata
     )
     if not success:
@@ -54,12 +55,13 @@ def list_agents():
 def vouch_for_agent(req: VouchRequest):
     """Submit a peer vouch."""
     success = swarm.vouch(
-        from_agent=req.from_agent,
-        to_agent=req.to_agent,
-        score=req.score,
-        reason=req.reason,
+        req.from_agent,
+        req.to_agent,
+        req.score,
+        req.reason,
         domain=req.domain,
-        skill=req.skill
+        skill=req.skill,
+        signature=req.signature
     )
     if not success:
         raise HTTPException(status_code=400, detail="Vouch failed (check agent IDs and permissions)")

@@ -5,6 +5,7 @@ class AgentOnboardRequest(BaseModel):
     agent_id: str
     name: str
     description: Optional[str] = ""
+    public_key: str  # Base64 encoded Ed25519 public key
     metadata: Optional[Dict[str, Any]] = None
 
 class VouchRequest(BaseModel):
@@ -12,6 +13,7 @@ class VouchRequest(BaseModel):
     to_agent: str
     score: int = Field(..., ge=0, le=100)
     reason: str
+    signature: str  # Base64 encoded Ed25519 signature of the payload
     domain: Optional[str] = "general"
     skill: Optional[str] = None
 
