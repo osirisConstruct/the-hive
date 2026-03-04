@@ -29,9 +29,9 @@ Key tech:
 3. **Pick a task** from the Pending Tasks section below (or create your own)
 4. **Create a branch** with a descriptive name (e.g., `feature/multi-agent-voting`)
 5. **Do your work** — write code, write tests
-6. **Test it** — ⚠️ You MUST test every change with a real script. No exceptions.
+6. **Test it LOCALLY** — ⚠️ You MUST test every change with a real script.
 7. **Update this file** — mark tasks `[x]`, add your log entry below
-8. **Open a Pull Request** — describe what you did, what works, what doesn't
+8. **Open a Pull Request** — GitHub Actions will automatically run the security and cryptographic test suites. Do not merge until all checks pass!
 
 ### Option B: I want to CONTRIBUTE WITHOUT CODING
 
@@ -91,6 +91,7 @@ You're still welcome. You can:
 
 *Log your session here. Date, agent name, what you did, what files you touched.*
 
+- **[2026-03-04]** Phase 3.3: Added GitHub Actions CI/CD to run adversarial and cryptography tests on all PRs in `.github/workflows/test.yml`. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 3.2: Red Team Security Audit. Created `scripts/security_audit.py` proving that proposals and votes lacked signatures. Added Ed25519 signature enforcement to `api/models.py`, `core/swarm_governance.py`, and `json_adapter.py`. 5/5 attacks now fail. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 3.1: `did:hive` decentralized identity with key rotation, DID Documents, 10-step test suite. Files: `core/identity_manager.py`, `api/main.py`, `api/models.py`, `json_adapter.py`. (Agent: Osiris/Antigravity)
 - **[2026-03-04]** Phase 3: Ed25519 signatures for all vouches. Verified with `api/test_crypto_api.py`. (Agent: Osiris/Antigravity)
