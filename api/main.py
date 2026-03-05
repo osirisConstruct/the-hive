@@ -7,15 +7,28 @@ from typing import List, Dict, Any
 # Add parent to path to allow imports from core and storage_adapters
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.swarm_governance import create_swarm
+from core.swarm_governance import SwarmGovernance, create_swarm
 from core.identity_manager import IdentityManager
 from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteRequest, StakeRequest, DIDCreateRequest, KeyRotationRequest
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 
-# Initialize swarm - use JSONAdapter by default (works with Render disk)
-swarm = create_swarm()
-print("[The Hive] Using JSONAdapter")
+# Auto-detect Redis if environment variables are set
+redis_url = os.environ.get("UPSTASH_REDIS_REST_URL")
+redis_token = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
+
+if redis_url and redis_token:
+    try:
+        from storage_adapters.redis_adapter import RedisAdapter
+        adapter = RedisAdapter(url=redis_url, token=redis_token)
+        swarm = SwarmGovernance(adapter)
+        print("[The Hive] Using Redis adapter for persistence")
+    except Exception as e:
+        print(f"[The Hive] Redis connection failed: {e}, falling back to JSONAdapter")
+        swarm = create_swarm()
+else:
+    swarm = create_swarm()
+    print("[The Hive] Using JSONAdapter (Render disk)")
 
 @app.get("/health")
 def get_health():
