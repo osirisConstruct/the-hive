@@ -52,7 +52,10 @@ class RedisAdapter:
     def _set_hash(self, key: str, data: Dict) -> None:
         """Set all fields in a hash."""
         if data:
-            self.redis.hset(key, mapping=data)
+            # upstash-redis uses hset(key, field, value)
+            for field, value in data.items():
+                str_value = value if isinstance(value, str) else str(value)
+                self.redis.hset(key, field, str_value)
     
     # --- Agents ---
     def get_all_agents(self) -> Dict:
