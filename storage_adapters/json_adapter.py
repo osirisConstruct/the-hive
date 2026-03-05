@@ -66,18 +66,15 @@ class JSONAdapter(BaseAdapter):
     PROPOSAL_STAKE_MULTIPLIER = 0.2
     
     def __init__(self, state_dir: str = "./state", hybrid_ratios: Dict = None):
-        # Use /tmp if available and writable (for serverless), otherwise use state_dir
-        import tempfile
-        try:
-            test_dir = tempfile.gettempdir()
-            Path(test_dir).mkdir(exist_ok=True)
-            test_file = Path(test_dir) / ".write_test"
-            test_file.touch()
-            test_file.unlink()
-            # /tmp is writable, use it
+        # Vercel serverless has /var/task as read-only, use /tmp
+        import os
+        current_dir = os.getcwd()
+        
+        if current_dir.startswith("/var/task"):
+            # Running on Vercel serverless - use /tmp
             self.state_dir = Path("/tmp/the_hive_state")
-        except:
-            # Fallback to provided state_dir
+        else:
+            # Running locally - use provided state_dir
             self.state_dir = Path(state_dir)
         
         self.state_dir.mkdir(parents=True, exist_ok=True)
