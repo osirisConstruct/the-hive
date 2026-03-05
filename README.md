@@ -1,5 +1,14 @@
 # The Hive - Swarm Governance System
 
+## Live API
+
+**Production URL:** https://the-hive-o6y8.onrender.com
+
+```
+# Test the API
+curl https://the-hive-o6y8.onrender.com/health
+```
+
 ## Quick Start (CLI)
 
 ```bash
@@ -36,25 +45,26 @@ python cli.py backup --password=YOUR_PASSWORD --output=my_identity.hive
 python cli.py restore --input=my_identity.hive --password=YOUR_PASSWORD
 ```
 
-## Deployment (Vercel - Free)
+## Deployment (Render - Free)
 
-### Deploy
+### Live: https://the-hive-o6y8.onrender.com
 
-```bash
-# Install Vercel CLI
-npm i -g vercel
+### Deploy (for development)
 
-# Login and deploy
-vercel
-```
+1. Create account at [render.com](https://render.com) with GitHub
+2. New > Web Service
+3. Connect your GitHub repo
+4. Settings:
+   - Name: the-hive
+   - Runtime: Python 3
+   - Build Command: (empty - auto-detects)
+   - Start Command: `uvicorn api.main:app --host 0.0.0.0 --port $PORT`
+5. Select Free tier
+6. Create
 
-### Auto-Deploy from GitHub
+### Auto-Deploy
 
-1. Go to [vercel.com](https://vercel.com)
-2. Import your GitHub repo: `osirisConstruct/the-hive`
-3. Done! Every push to `master` auto-deploys
-
-Your API will be live at: `https://the-hive-[yourname].vercel.app`
+Every push to master auto-deploys to Render.
 
 ```bash
 # Run locally
