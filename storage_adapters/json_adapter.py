@@ -66,27 +66,42 @@ class JSONAdapter(BaseAdapter):
     PROPOSAL_STAKE_MULTIPLIER = 0.2
     
     def __init__(self, state_dir: str = "./state", hybrid_ratios: Dict = None):
-        # Always use /tmp on serverless, ignore state_dir parameter
-        # This is required for Vercel where /var/task is read-only
-        self.state_dir = Path("/tmp/the_hive_state")
+        # Use in-memory storage for Vercel serverless, files for local
+        import os
         
-        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self.use_memory = os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
         
-        # Ensure directories exist
-        (self.state_dir / "attestations").mkdir(exist_ok=True)
-        (self.state_dir / "proposals").mkdir(exist_ok=True)
-        (self.state_dir / "did_documents").mkdir(exist_ok=True)
+        if self.use_memory:
+            # Serverless: use in-memory storage
+            self._memory = {
+                "agents": {},
+                "attestations": {},
+                "proposals": {},
+                "did_documents": {}
+            }
+            self.state_dir = None
+        else:
+            # Local: use file storage
+            self._memory = None
+            self.state_dir = Path(state_dir)
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            (self.state_dir / "attestations").mkdir(exist_ok=True)
+            (self.state_dir / "proposals").mkdir(exist_ok=True)
+            (self.state_dir / "did_documents").mkdir(exist_ok=True)
         
         # Store hybrid ratios (configurable by domain)
         self.hybrid_ratios = hybrid_ratios or self.DEFAULT_HYBRID_RATIOS
         
         # Initialize registry if not exists
-        self.registry_file = self.state_dir / "registry.json"
-        if not self.registry_file.exists():
-            self._save_json(self.registry_file, {
-                "agents": {},
-                "_version": 1
-            })
+        if self.use_memory:
+            pass  # Already initialized
+        else:
+            self.registry_file = self.state_dir / "registry.json"
+            if not self.registry_file.exists():
+                self._save_json(self.registry_file, {
+                    "agents": {},
+                    "_version": 1
+                })
     
     def _load_json(self, filepath: Path) -> Any:
         """Load JSON from file."""
