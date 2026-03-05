@@ -66,28 +66,31 @@ class JSONAdapter(BaseAdapter):
     PROPOSAL_STAKE_MULTIPLIER = 0.2
     
     def __init__(self, state_dir: str = "./state", hybrid_ratios: Dict = None):
-        # Use in-memory storage for Vercel serverless, files for local
-        import os
+        from pathlib import Path
         
-        self.use_memory = os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        self.state_dir = Path(state_dir)
         
-        if self.use_memory:
-            # Serverless: use in-memory storage
+        try:
+            # 1. Try to create folders (Local mode)
+            self.state_dir.mkdir(parents=True, exist_ok=True)
+            (self.state_dir / "attestations").mkdir(exist_ok=True)
+            (self.state_dir / "proposals").mkdir(exist_ok=True)
+            (self.state_dir / "did_documents").mkdir(exist_ok=True)
+            
+            # If we get here, we're in local mode
+            self.use_memory = False
+            self._memory = None
+            
+        except OSError:
+            # 2. If read-only error (Vercel Serverless), use memory
+            self.use_memory = True
+            self.state_dir = None
             self._memory = {
                 "agents": {},
                 "attestations": {},
                 "proposals": {},
                 "did_documents": {}
             }
-            self.state_dir = None
-        else:
-            # Local: use file storage
-            self._memory = None
-            self.state_dir = Path(state_dir)
-            self.state_dir.mkdir(parents=True, exist_ok=True)
-            (self.state_dir / "attestations").mkdir(exist_ok=True)
-            (self.state_dir / "proposals").mkdir(exist_ok=True)
-            (self.state_dir / "did_documents").mkdir(exist_ok=True)
         
         # Store hybrid ratios (configurable by domain)
         self.hybrid_ratios = hybrid_ratios or self.DEFAULT_HYBRID_RATIOS
