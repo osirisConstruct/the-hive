@@ -66,7 +66,20 @@ class JSONAdapter(BaseAdapter):
     PROPOSAL_STAKE_MULTIPLIER = 0.2
     
     def __init__(self, state_dir: str = "./state", hybrid_ratios: Dict = None):
-        self.state_dir = Path(state_dir)
+        # Use /tmp if available and writable (for serverless), otherwise use state_dir
+        import tempfile
+        try:
+            test_dir = tempfile.gettempdir()
+            Path(test_dir).mkdir(exist_ok=True)
+            test_file = Path(test_dir) / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+            # /tmp is writable, use it
+            self.state_dir = Path("/tmp/the_hive_state")
+        except:
+            # Fallback to provided state_dir
+            self.state_dir = Path(state_dir)
+        
         self.state_dir.mkdir(parents=True, exist_ok=True)
         
         # Ensure directories exist

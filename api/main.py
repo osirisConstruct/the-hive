@@ -13,17 +13,8 @@ from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteR
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 
-# Detect if running on Vercel serverless
-is_vercel = os.environ.get("VERCEL", os.environ.get("AWS_LAMBDA_FUNCTION_NAME", False))
-
-# Use /tmp for serverless, local state for dev
-if is_vercel:
-    STATE_DIR = "/tmp/the_hive_state"
-else:
-    STATE_DIR = str(Path(__file__).parent.parent / "state")
-
-os.makedirs(STATE_DIR, exist_ok=True)
-swarm = create_swarm(STATE_DIR)
+# JSONAdapter auto-detects /tmp for serverless
+swarm = create_swarm()
 
 @app.get("/health")
 def get_health():
