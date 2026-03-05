@@ -66,16 +66,9 @@ class JSONAdapter(BaseAdapter):
     PROPOSAL_STAKE_MULTIPLIER = 0.2
     
     def __init__(self, state_dir: str = "./state", hybrid_ratios: Dict = None):
-        # Vercel serverless has /var/task as read-only, use /tmp
-        import os
-        current_dir = os.getcwd()
-        
-        if current_dir.startswith("/var/task"):
-            # Running on Vercel serverless - use /tmp
-            self.state_dir = Path("/tmp/the_hive_state")
-        else:
-            # Running locally - use provided state_dir
-            self.state_dir = Path(state_dir)
+        # Always use /tmp on serverless, ignore state_dir parameter
+        # This is required for Vercel where /var/task is read-only
+        self.state_dir = Path("/tmp/the_hive_state")
         
         self.state_dir.mkdir(parents=True, exist_ok=True)
         
