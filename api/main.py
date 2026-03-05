@@ -17,6 +17,10 @@ app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 redis_url = os.environ.get("UPSTASH_REDIS_REST_URL")
 redis_token = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 
+print(f"[The Hive] Redis env check: URL={redis_url is not None}, TOKEN={redis_token is not None}")
+if redis_url:
+    print(f"[The Hive] Redis URL (masked): {redis_url[:30]}...")
+
 if redis_url and redis_token:
     try:
         from storage_adapters.redis_adapter import RedisAdapter
