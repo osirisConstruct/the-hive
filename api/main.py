@@ -13,25 +13,9 @@ from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteR
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 
-# Initialize swarm - use Redis if UPSTASH_REDIS_REST_URL is set, otherwise JSONAdapter
-redis_url = os.environ.get("UPSTASH_REDIS_REST_URL")
-redis_token = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
-
-if redis_url and redis_token:
-    # Use Redis adapter for persistence
-    from storage_adapters.redis_adapter import RedisAdapter
-    try:
-        adapter = RedisAdapter(url=redis_url, token=redis_token)
-        from core.swarm_governance import SwarmGovernance
-        swarm = SwarmGovernance(adapter)
-        print("[The Hive] Using Redis adapter for persistence")
-    except Exception as e:
-        print(f"[The Hive] Redis connection failed: {e}, falling back to JSONAdapter")
-        swarm = create_swarm()
-else:
-    # Use JSONAdapter (local filesystem or in-memory)
-    swarm = create_swarm()
-    print("[The Hive] Using JSONAdapter (no Redis)")
+# Initialize swarm - use JSONAdapter by default (works with Render disk)
+swarm = create_swarm()
+print("[The Hive] Using JSONAdapter")
 
 @app.get("/health")
 def get_health():
