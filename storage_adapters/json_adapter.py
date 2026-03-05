@@ -66,45 +66,44 @@ class JSONAdapter(BaseAdapter):
     PROPOSAL_STAKE_MULTIPLIER = 0.2
     
     def __init__(self, state_dir: str = "./state", hybrid_ratios: Dict = None):
+        import os
         from pathlib import Path
         
-        self.state_dir = Path(state_dir)
+        self.hybrid_ratios = hybrid_ratios or self.DEFAULT_HYBRID_RATIOS
         
-        try:
-            # 1. Try to create folders (Local mode)
-            self.state_dir.mkdir(parents=True, exist_ok=True)
-            (self.state_dir / "attestations").mkdir(exist_ok=True)
-            (self.state_dir / "proposals").mkdir(exist_ok=True)
-            (self.state_dir / "did_documents").mkdir(exist_ok=True)
-            
-            # If we get here, we're in local mode
-            self.use_memory = False
-            self._memory = None
-            
-        except OSError:
-            # 2. If read-only error (Vercel Serverless), use memory
+        # Check env var first (can be set in Vercel dashboard)
+        if os.environ.get("FORCE_MEMORY_STORAGE") == "1":
             self.use_memory = True
             self.state_dir = None
             self._memory = {
-                "agents": {},
-                "attestations": {},
-                "proposals": {},
-                "did_documents": {}
+                "agents": {}, "attestations": {}, "proposals": {}, "did_documents": {}
             }
-        
-        # Store hybrid ratios (configurable by domain)
-        self.hybrid_ratios = hybrid_ratios or self.DEFAULT_HYBRID_RATIOS
-        
-        # Initialize registry if not exists
-        if self.use_memory:
-            pass  # Already initialized
         else:
+            self.state_dir = Path(state_dir)
+            
+            try:
+                # Try local mode
+                self.state_dir.mkdir(parents=True, exist_ok=True)
+                (self.state_dir / "attestations").mkdir(exist_ok=True)
+                (self.state_dir / "proposals").mkdir(exist_ok=True)
+                (self.state_dir / "did_documents").mkdir(exist_ok=True)
+                
+                self.use_memory = False
+                self._memory = None
+                
+            except OSError:
+                # Fallback to memory (Vercel)
+                self.use_memory = True
+                self.state_dir = None
+                self._memory = {
+                    "agents": {}, "attestations": {}, "proposals": {}, "did_documents": {}
+                }
+        
+        # Initialize registry
+        if not self.use_memory:
             self.registry_file = self.state_dir / "registry.json"
             if not self.registry_file.exists():
-                self._save_json(self.registry_file, {
-                    "agents": {},
-                    "_version": 1
-                })
+                self._save_json(self.registry_file, {"agents": {}, "_version": 1})
     
     def _load_json(self, filepath: Path) -> Any:
         """Load JSON from file."""
