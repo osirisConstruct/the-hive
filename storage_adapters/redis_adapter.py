@@ -1,7 +1,7 @@
 """
-The Hive - Redis Adapter
+The Hive - Redis Adapter (Upstash REST compatible)
 Uses Upstash Redis for persistent storage
-Implements full BaseAdapter interface (equivalent to JSONAdapter)
+Simplified: no optimistic locking (Upstash REST doesn't support WATCH/MULTI)
 """
 
 import json
@@ -19,36 +19,26 @@ except ImportError:
 from core.crypto_utils import CryptoUtils
 
 
-class OptimisticLockError(Exception):
-    """Raised when optimistic lock fails due to version conflict."""
-    pass
-
-
 class RedisAdapter:
-    """Redis storage adapter for The Hive swarm governance.
+    """Redis storage adapter for The Hive (Upstash REST compatible).
     
-    Uses Redis Hashes for storage with optimistic locking via WATCH/MULTI/EXEC.
     Data layout:
-      - hive:agents (hash) - field=agent_id, value=JSON string
+      - hive:agents (hash) - field=agent_id, value=JSON agent object
       - hive:attestations:{to_agent} (hash) - field=vouch_id, value=JSON vouch
       - hive:proposals (hash) - field=proposal_id, value=JSON proposal
       - hive:did_docs (hash) - field=did, value=JSON DID document
-      - hive:version (string) - global version counter
+      - hive:version (string) - global version counter (incremented on changes)
     """
     
-    # Thresholds (same as JSONAdapter)
+    # Thresholds
     MIN_TRUST_TO_PROPOSE = 60
-    APPROVAL_THRESHOLD = 0.75
     TOTAL_TRUST_THRESHOLD = 0.60
-    MIN_VOTES = 2
     MIN_PARTICIPANTS = 3
     MAX_RETRIES = 3
     
-    # Reputation Decay Settings
     DECAY_HALFLIFE_DAYS = 180
     DECAY_ENABLED = True
     
-    # Configurable Hybrid Scores
     DEFAULT_HYBRID_RATIOS = {
         "general": {"hive": 0.70, "attestation": 0.30},
         "coding": {"hive": 0.70, "attestation": 0.30},
@@ -61,18 +51,15 @@ class RedisAdapter:
     
     DEFAULT_DOMAINS = list(DEFAULT_HYBRID_RATIOS.keys())
     
-    # Stake settings (disabled by default)
     STAKE_ENABLED = False
     MIN_STAKE_TO_VOUCH = 10
     STAKE_HALFLIFE_DAYS = 180
     SLASHING_THRESHOLD = 0.5
     VOUCH_STAKE_MULTIPLIER = 0.1
     
-    # Security settings
     MAX_VOUCHES_PER_DAY = 10
     MIN_VOUCH_REASON_LENGTH = 10
     
-    # Proposal settings
     MIN_STAKE_TO_PROPOSE = 20
     PROPOSAL_STAKE_MULTIPLIER = 0.2
     
@@ -90,9 +77,12 @@ class RedisAdapter:
                 raise ValueError("Provide UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN")
             self.redis = Redis(url=url, token=token)
         
-        # Initialize version
         if not self.redis.exists("hive:version"):
             self.redis.set("hive:version", "1")
+    
+    def _increment_version(self):
+        """Increment global version."""
+        self.redis.incr("hive:version")
     
     # ========== AGENT REGISTRY ==========
     
@@ -118,55 +108,37 @@ class RedisAdapter:
         return None
     
     def register_agent(self, agent_id: str, agent_info: Dict) -> bool:
-        """Register a new agent with optimistic locking."""
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                # WATCH the agents hash for conflicts
-                self.redis.watch("hive:agents")
-                
-                # Get current version
-                version = int(self.redis.get("hive:version") or 1)
-                
-                # Check if agent already exists
-                existing = self.redis.hget("hive:agents", agent_id)
-                if existing:
-                    return False
-                
-                # Prepare agent data
-                agent_info["registered_at"] = datetime.utcnow().isoformat()
-                agent_info["last_activity_at"] = datetime.utcnow().isoformat()
-                agent_info["trust_score"] = 0.0
-                agent_info["vouch_count"] = 0
-                
-                if "public_key" not in agent_info:
-                    return False
-                
-                # Start transaction
-                pipe = self.redis.multi()
-                pipe.hset("hive:agents", agent_id, json.dumps(agent_info))
-                pipe.incr("hive:version")
-                results = pipe.execute()
-                
-                return True
-                
-            except Exception as e:
-                if attempt == self.MAX_RETRIES - 1:
-                    return False
-                time.sleep(0.01 * (attempt + 1))
+        """Register a new agent (atomic HSETNX)."""
+        # Check if already exists
+        exists = self.redis.hexists("hive:agents", agent_id)
+        if exists:
+            return False
         
+        agent_info["registered_at"] = datetime.utcnow().isoformat()
+        agent_info["last_activity_at"] = datetime.utcnow().isoformat()
+        agent_info["trust_score"] = 0.0
+        agent_info["vouch_count"] = 0
+        
+        if "public_key" not in agent_info:
+            return False
+        
+        # Atomically set if not exists
+        result = self.redis.hsetnx("hive:agents", agent_id, json.dumps(agent_info))
+        if result == 1:
+            self._increment_version()
+            return True
         return False
     
     # ========== DID DOCUMENTS ==========
     
     def store_did_document(self, did: str, did_document: dict) -> bool:
-        """Store a DID Document."""
         safe_name = did.replace(":", "_")
         key = f"hive:did_doc:{safe_name}"
         self.redis.set(key, json.dumps(did_document))
+        self._increment_version()
         return True
     
     def get_did_document(self, did: str) -> Optional[Dict]:
-        """Resolve a DID to its document."""
         safe_name = did.replace(":", "_")
         key = f"hive:did_doc:{safe_name}"
         data = self.redis.get(key)
@@ -178,80 +150,57 @@ class RedisAdapter:
         return None
     
     def update_did_document(self, did: str, did_document: dict) -> bool:
-        """Update an existing DID Document."""
         safe_name = did.replace(":", "_")
         key = f"hive:did_doc:{safe_name}"
         if not self.redis.exists(key):
             return False
         self.redis.set(key, json.dumps(did_document))
+        self._increment_version()
         return True
     
     def link_did_to_agent(self, agent_id: str, did: str) -> bool:
-        """Link a DID to an agent record."""
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                self.redis.watch("hive:agents")
-                
-                agent = self.get_agent(agent_id)
-                if not agent:
-                    return False
-                
-                # Get full agent data (since we need to update it)
-                agent_json = self.redis.hget("hive:agents", agent_id)
-                agent_data = json.loads(agent_json)
-                agent_data["did"] = did
-                
-                pipe = self.redis.multi()
-                pipe.hset("hive:agents", agent_id, json.dumps(agent_data))
-                pipe.incr("hive:version")
-                pipe.execute()
-                
-                return True
-            except Exception:
-                if attempt == self.MAX_RETRIES - 1:
-                    return False
-                time.sleep(0.01 * (attempt + 1))
+        agent = self.get_agent(agent_id)
+        if not agent:
+            return False
         
-        return False
+        agent_json = self.redis.hget("hive:agents", agent_id)
+        if not agent_json:
+            return False
+        
+        agent_data = json.loads(agent_json)
+        agent_data["did"] = did
+        
+        self.redis.hset("hive:agents", agent_id, json.dumps(agent_data))
+        self._increment_version()
+        return True
     
     # ========== TRUST & VOUCHES ==========
     
     def _calculate_decay_factor(self, last_activity_iso: str) -> float:
-        """Calculate exponential decay factor."""
         if not last_activity_iso:
             return 1.0
-        
         try:
             last_activity = datetime.fromisoformat(last_activity_iso)
             days_inactive = (datetime.utcnow() - last_activity).days
-            
             if days_inactive <= 0:
                 return 1.0
-            
             import math
-            decay_factor = math.pow(0.5, days_inactive / self.DECAY_HALFLIFE_DAYS)
-            return decay_factor
+            return math.pow(0.5, days_inactive / self.DECAY_HALFLIFE_DAYS)
         except:
             return 1.0
     
     def get_trust_score(self, agent_id: str) -> float:
-        """Calculate trust score from vouches with decay."""
         base_score = self._calculate_trust_recursive(agent_id, set())
-        
         if self.DECAY_ENABLED:
             agent = self.get_agent(agent_id)
             if agent:
-                last_activity = agent.get("last_activity_at")
-                decay_factor = self._calculate_decay_factor(last_activity)
+                decay_factor = self._calculate_decay_factor(agent.get("last_activity_at"))
                 return round(base_score * decay_factor, 2)
-        
         return base_score
     
     def _calculate_trust_recursive(self, agent_id: str, visited: set) -> float:
-        """Recursive trust calculation with rooted dampening."""
         if agent_id in visited:
             return 0.0
-        
         visited.add(agent_id)
         
         agent = self.get_agent(agent_id)
@@ -268,7 +217,6 @@ class RedisAdapter:
         
         for vouch in vouches:
             voucher_id = vouch["from_agent"]
-            
             if voucher_id == agent_id:
                 voucher_trust = 0
             else:
@@ -286,11 +234,9 @@ class RedisAdapter:
         
         base_score = total_weighted / total_weight
         dampening = max_voucher_trust / 100.0
-        score = base_score * dampening
-        return min(100.0, round(score, 2))
+        return min(100.0, round(base_score * dampening, 2))
     
     def get_trust_by_domain(self, agent_id: str) -> Dict:
-        """Calculate trust scores per domain."""
         vouches = self.get_vouches(agent_id)
         domain_scores = {}
         
@@ -316,11 +262,9 @@ class RedisAdapter:
                 result[domain] = {"score": round(min(100.0, score), 2), "attestations": data["vouches"]}
             else:
                 result[domain] = {"score": 0, "attestations": 0}
-        
         return result
     
     def get_graph_properties(self, agent_id: str) -> Dict:
-        """Get graph properties."""
         vouches_received = self.get_vouches(agent_id)
         vouches_given = self.get_vouches_given(agent_id)
         
@@ -354,27 +298,21 @@ class RedisAdapter:
         }
     
     def _calculate_max_depth(self, agent_id: str, visited: set, depth: int) -> int:
-        """Calculate max depth of trust chain."""
         if agent_id in visited or depth > 10:
             return depth
-        
         visited.add(agent_id)
         vouches = self.get_vouches(agent_id)
         if not vouches:
             return depth
-        
         max_child_depth = depth
         for vouch in vouches:
             child_depth = self._calculate_max_depth(vouch["from_agent"], visited.copy(), depth + 1)
             max_child_depth = max(max_child_depth, child_depth)
-        
         return max_child_depth
     
     def detect_cliques(self, min_size: int = 3) -> List[Dict]:
-        """Detect cliques in trust graph."""
         agents = [a["agent_id"] for a in self.get_all_agents()]
         adjacency = {a: set() for a in agents}
-        
         for agent in agents:
             vouches_given = self.get_vouches_given(agent)
             for v in vouches_given:
@@ -384,18 +322,14 @@ class RedisAdapter:
         
         cliques = []
         cliques.extend(self._find_cliques_bronkerosch(adjacency, min_size))
-        
         cycles = self._find_cycles(adjacency, min_size)
         for cycle in cycles:
             if cycle not in [set(c["members"]) for c in cliques]:
                 cliques.append({"members": list(cycle), "size": len(cycle), "type": "collusion_cycle"})
-        
         return cliques
     
     def _find_cycles(self, adjacency: Dict, min_size: int) -> List[set]:
-        """DFS to find cycles."""
         cycles = []
-        
         def dfs(start_node, current_node, visited, path):
             for neighbor in adjacency.get(current_node, set()):
                 if neighbor == start_node:
@@ -408,10 +342,8 @@ class RedisAdapter:
                     dfs(start_node, neighbor, visited, path)
                     path.pop()
                     visited.remove(neighbor)
-        
         for node in adjacency:
             dfs(node, node, {node}, [node])
-        
         unique_cycles = []
         for c in cycles:
             if c not in unique_cycles:
@@ -419,10 +351,8 @@ class RedisAdapter:
         return unique_cycles
     
     def _find_cliques_bronkerosch(self, adjacency: Dict, min_size: int) -> List[Dict]:
-        """Simplified Bron-Kerbosch."""
         nodes = set(adjacency.keys())
         cliques = []
-        
         for node in nodes:
             neighbors = adjacency[node]
             for neighbor in neighbors:
@@ -432,32 +362,24 @@ class RedisAdapter:
                     clique = self._expand_clique(node, neighbor, adjacency, {node, neighbor})
                     if len(clique) >= min_size and clique not in [c["members"] for c in cliques]:
                         cliques.append({"members": list(clique), "size": len(clique), "type": "mutual_vouch_ring"})
-        
         return cliques
     
     def _expand_clique(self, node1: str, node2: str, adjacency: Dict, current: set) -> set:
-        """Expand clique by finding common neighbors."""
         common = adjacency[node1].intersection(adjacency[node2])
         common = common.difference(current)
-        
         if not common:
             return current
-        
         new_node = list(common)[0]
         current.add(new_node)
-        
         for existing in list(current):
             if existing != new_node:
                 new_common = current.intersection(adjacency[existing])
                 if new_common:
                     current = current.union(new_common)
-        
         return current
     
     def check_suspicious_patterns(self, agent_id: str = None) -> Dict:
-        """Check for suspicious patterns."""
         results = {"suspicious_agents": [], "high_reciprocity": [], "cliques": [], "isolated_agents": []}
-        
         if agent_id:
             graph = self.get_graph_properties(agent_id)
             if graph["reciprocity_ratio"] > 0.8:
@@ -468,25 +390,20 @@ class RedisAdapter:
                 graph = self.get_graph_properties(aid)
                 if graph["reciprocity_ratio"] > 0.8:
                     results["high_reciprocity"].append(aid)
-        
         results["cliques"] = self.detect_cliques(min_size=3)
-        
         for agent in self.get_all_agents():
             aid = agent["agent_id"]
             vouches = self.get_vouches(aid)
             vouches_given = self.get_vouches_given(aid)
             if len(vouches) == 0 and len(vouches_given) == 0:
                 results["isolated_agents"].append(aid)
-        
         return results
     
     # ========== VOUCHES ==========
     
     def get_vouches(self, agent_id: str) -> List[Dict]:
-        """Get all active vouches for an agent."""
         key = f"hive:attestations:{agent_id}"
         vouches_json = self.redis.hgetall(key)
-        
         active = []
         now = datetime.utcnow()
         for vouch_json in vouches_json.values():
@@ -497,17 +414,12 @@ class RedisAdapter:
                     active.append(v)
             except:
                 continue
-        
         return active
     
     def get_vouches_given(self, agent_id: str) -> List[Dict]:
-        """Get all vouches given by an agent."""
         all_vouches = []
-        
-        # Scan all attestation keys for this agent's vouches
         pattern = "hive:attestations:*"
-        keys = self.redis.keys(pattern)
-        
+        keys = self.redis.keys(pattern) or []
         for key in keys:
             vouches_json = self.redis.hgetall(key)
             for vouch_json in vouches_json.values():
@@ -517,25 +429,20 @@ class RedisAdapter:
                         all_vouches.append(v)
                 except:
                     continue
-        
         return all_vouches
     
     def add_vouch(self, from_agent: str, to_agent: str, score: int, reason: str,
                   domain: str = "general", skill: str = None, signature: str = None) -> bool:
-        """Add a peer vouch with crypto verification."""
         try:
-            # Verify agents exist
             from_agent_info = self.get_agent(from_agent)
             to_agent_info = self.get_agent(to_agent)
             if not from_agent_info or not to_agent_info:
                 return False
             
-            # Crypto verification (Phase 3)
             if signature:
                 public_key = from_agent_info.get("public_key")
                 if not public_key:
                     return False
-                
                 payload = {"from_agent": from_agent, "to_agent": to_agent, "score": score, "reason": reason, "domain": domain, "skill": skill}
                 if not CryptoUtils.verify_signature(public_key, payload, signature):
                     return False
@@ -549,7 +456,6 @@ class RedisAdapter:
             if domain not in self.DEFAULT_DOMAINS:
                 domain = "general"
             
-            # Create vouch
             vouch = {
                 "id": str(uuid.uuid4()),
                 "from_agent": from_agent,
@@ -563,36 +469,19 @@ class RedisAdapter:
                 "expires_at": (datetime.utcnow() + timedelta(days=30)).isoformat()
             }
             
-            # Store vouch
             key = f"hive:attestations:{to_agent}"
             vouch_id = vouch["id"]
             
-            for attempt in range(self.MAX_RETRIES):
-                try:
-                    self.redis.watch(key)
-                    
-                    # Get existing
-                    existing = self.redis.hget(key, vouch_id)
-                    if existing:
-                        # Already exists
-                        return False
-                    
-                    pipe = self.redis.multi()
-                    pipe.hset(key, vouch_id, json.dumps(vouch))
-                    pipe.incr("hive:version")
-                    pipe.execute()
-                    
-                    # Update agent trust and activity
-                    self._update_agent_trust(to_agent, len(self.get_vouches(to_agent)))
-                    self._update_agent_activity(to_agent)
-                    
-                    return True
-                except Exception:
-                    if attempt == self.MAX_RETRIES - 1:
-                        return False
-                    time.sleep(0.01 * (attempt + 1))
+            # Use HSETNX for the individual vouch to avoid duplicates (though ID should be unique)
+            # But HSETNX doesn't work with json string values easily; we'll just HSET (ID is UUID, so unique)
+            self.redis.hset(key, vouch_id, json.dumps(vouch))
+            self._increment_version()
             
-            return False
+            # Update trust and activity (non-atomic but acceptable for low concurrency)
+            self._update_agent_trust(to_agent, len(self.get_vouches(to_agent)))
+            self._update_agent_activity(to_agent)
+            
+            return True
         except Exception as e:
             import traceback
             with open("error.log", "a") as f:
@@ -600,60 +489,30 @@ class RedisAdapter:
             raise
     
     def _update_agent_trust(self, agent_id: str, vouch_count: int) -> None:
-        """Update agent trust score in registry."""
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                self.redis.watch("hive:agents")
-                
-                agent = self.get_agent(agent_id)
-                if not agent:
-                    return
-                
-                agent_json = self.redis.hget("hive:agents", agent_id)
-                agent_data = json.loads(agent_json)
-                agent_data["trust_score"] = self.get_trust_score(agent_id)
-                agent_data["vouch_count"] = vouch_count
-                
-                pipe = self.redis.multi()
-                pipe.hset("hive:agents", agent_id, json.dumps(agent_data))
-                pipe.incr("hive:version")
-                pipe.execute()
-                
-                return
-            except Exception:
-                if attempt == self.MAX_RETRIES - 1:
-                    return
-                time.sleep(0.01 * (attempt + 1))
+        agent = self.get_agent(agent_id)
+        if not agent:
+            return
+        agent_json = self.redis.hget("hive:agents", agent_id)
+        if not agent_json:
+            return
+        agent_data = json.loads(agent_json)
+        agent_data["trust_score"] = self.get_trust_score(agent_id)
+        agent_data["vouch_count"] = vouch_count
+        self.redis.hset("hive:agents", agent_id, json.dumps(agent_data))
+        self._increment_version()
     
     def _update_agent_activity(self, agent_id: str) -> None:
-        """Update agent's last activity timestamp."""
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                self.redis.watch("hive:agents")
-                
-                agent_json = self.redis.hget("hive:agents", agent_id)
-                if not agent_json:
-                    return
-                
-                agent_data = json.loads(agent_json)
-                agent_data["last_activity_at"] = datetime.utcnow().isoformat()
-                
-                pipe = self.redis.multi()
-                pipe.hset("hive:agents", agent_id, json.dumps(agent_data))
-                pipe.incr("hive:version")
-                pipe.execute()
-                
-                return
-            except Exception:
-                if attempt == self.MAX_RETRIES - 1:
-                    return
-                time.sleep(0.01 * (attempt + 1))
+        agent_json = self.redis.hget("hive:agents", agent_id)
+        if not agent_json:
+            return
+        agent_data = json.loads(agent_json)
+        agent_data["last_activity_at"] = datetime.utcnow().isoformat()
+        self.redis.hset("hive:agents", agent_id, json.dumps(agent_data))
+        self._increment_version()
     
     # ========== PROPOSALS ==========
     
     def create_proposal(self, proposer_id: str, title: str, description: str, code_diff_hash: str, signature: str = None) -> Optional[str]:
-        """Create a new evolution proposal."""
-        # Verify signature
         if not signature:
             print(f"DEBUG: missing signature for proposal from {proposer_id}")
             return None
@@ -665,12 +524,10 @@ class RedisAdapter:
             if not agent_data:
                 print(f"DEBUG: Unknown proposer {proposer_id}")
                 return None
-            
             public_key = agent_data.get("public_key")
             if not public_key:
                 print(f"DEBUG: No public key for proposer {proposer_id}")
                 return None
-            
             if not CryptoUtils.verify_signature(public_key, payload, signature):
                 print(f"DEBUG: Invalid signature for proposal from {proposer_id}")
                 return None
@@ -678,7 +535,6 @@ class RedisAdapter:
             print(f"DEBUG: Signature verification failed: {e}")
             return None
         
-        # Check minimum trust
         trust = self.get_trust_score(proposer_id)
         if trust < self.MIN_TRUST_TO_PROPOSE:
             return None
@@ -696,17 +552,13 @@ class RedisAdapter:
             "expires_at": (datetime.utcnow() + timedelta(days=7)).isoformat()
         }
         
-        # Store proposal
         self.redis.hset("hive:proposals", proposal_id, json.dumps(proposal))
-        self.redis.incr("hive:version")
-        
+        self._increment_version()
         return proposal_id
     
     def vote_proposal(self, proposal_id: str, voter_id: str, vote: str, reason: Optional[str] = None, signature: str = None) -> bool:
-        """Vote on a proposal."""
         if vote not in ["approve", "reject", "abstain"]:
             return False
-        
         if not signature:
             print(f"DEBUG: missing signature for vote from {voter_id}")
             return False
@@ -718,12 +570,10 @@ class RedisAdapter:
             if not agent_data:
                 print(f"DEBUG: Unknown voter {voter_id}")
                 return False
-            
             public_key = agent_data.get("public_key")
             if not public_key:
                 print(f"DEBUG: No public key for voter {voter_id}")
                 return False
-            
             if not CryptoUtils.verify_signature(public_key, payload, signature):
                 print(f"DEBUG: Invalid signature for vote from {voter_id}")
                 return False
@@ -735,56 +585,45 @@ class RedisAdapter:
         if not proposal_json:
             return False
         
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                self.redis.watch("hive:proposals")
-                proposal = json.loads(proposal_json)
-                
-                if proposal["status"] != "voting":
-                    return False
-                
-                trust_weight = self.get_trust_score(voter_id)
-                
-                proposal["votes"][voter_id] = {
-                    "vote": vote,
-                    "reason": reason or "",
-                    "trust_weight": trust_weight,
-                    "voted_at": datetime.utcnow().isoformat()
-                }
-                
-                pipe = self.redis.multi()
-                pipe.hset("hive:proposals", proposal_id, json.dumps(proposal))
-                pipe.incr("hive:version")
-                pipe.execute()
-                
-                # Check execution
-                self._check_proposal_execution(proposal_id)
-                
-                return True
-            except Exception:
-                if attempt == self.MAX_RETRIES - 1:
-                    return False
-                time.sleep(0.01 * (attempt + 1))
+        try:
+            proposal = json.loads(proposal_json)
+        except:
+            return False
         
-        return False
+        if proposal["status"] != "voting":
+            return False
+        
+        trust_weight = self.get_trust_score(voter_id)
+        proposal["votes"][voter_id] = {
+            "vote": vote,
+            "reason": reason or "",
+            "trust_weight": trust_weight,
+            "voted_at": datetime.utcnow().isoformat()
+        }
+        
+        self.redis.hset("hive:proposals", proposal_id, json.dumps(proposal))
+        self._increment_version()
+        
+        self._check_proposal_execution(proposal_id)
+        return True
     
     def _check_proposal_execution(self, proposal_id: str) -> None:
-        """Check if proposal should be executed."""
         proposal_json = self.redis.hget("hive:proposals", proposal_id)
         if not proposal_json:
             return
+        try:
+            proposal = json.loads(proposal_json)
+        except:
+            return
         
-        proposal = json.loads(proposal_json)
         quorum_result = self.calculate_quorum(proposal_id)
-        
         if quorum_result["can_execute"]:
             proposal["status"] = "approved"
             proposal["executed_at"] = datetime.utcnow().isoformat()
             self.redis.hset("hive:proposals", proposal_id, json.dumps(proposal))
-            self.redis.incr("hive:version")
+            self._increment_version()
     
     def get_proposal(self, proposal_id: str) -> Optional[Dict]:
-        """Get proposal by ID."""
         proposal_json = self.redis.hget("hive:proposals", proposal_id)
         if proposal_json:
             try:
@@ -794,7 +633,6 @@ class RedisAdapter:
         return None
     
     def get_active_proposals(self) -> List[Dict]:
-        """Get all active proposals."""
         proposals_json = self.redis.hgetall("hive:proposals")
         proposals = []
         for p_json in proposals_json.values():
@@ -804,11 +642,9 @@ class RedisAdapter:
                     proposals.append(p)
             except:
                 continue
-        
         return sorted(proposals, key=lambda x: x["created_at"], reverse=True)
     
     def get_proposals_by_status(self, status: str) -> List[Dict]:
-        """Get proposals by status."""
         proposals_json = self.redis.hgetall("hive:proposals")
         results = []
         for p_json in proposals_json.values():
@@ -818,20 +654,16 @@ class RedisAdapter:
                     results.append(p)
             except:
                 continue
-        
         return sorted(results, key=lambda x: x["created_at"], reverse=True)
     
     # ========== GOVERNANCE ==========
     
     def calculate_quorum(self, proposal_id: str) -> Dict:
-        """Calculate voting quorum."""
         proposal = self.get_proposal(proposal_id)
         if not proposal:
             return {"valid": False, "error": "Proposal not found"}
         
         votes = proposal.get("votes", {})
-        
-        # Calculate total swarm weight
         all_agents = self.get_all_agents()
         total_swarm_weight = sum(self.get_trust_score(a.get("agent_id", a.get("id"))) for a in all_agents)
         
@@ -881,13 +713,10 @@ class RedisAdapter:
         return "Unknown"
     
     def get_swarm_status(self) -> Dict:
-        """Get overall swarm status."""
         agents = self.get_all_agents()
         active_proposals = self.get_active_proposals()
-        
         total_trust = sum(a.get("trust_score", 0) for a in agents)
         avg_trust = total_trust / len(agents) if agents else 0
-        
         return {
             "total_agents": len(agents),
             "average_trust": round(avg_trust, 2),
@@ -901,24 +730,20 @@ class RedisAdapter:
     # ========== STAKE MANAGEMENT ==========
     
     def get_stake(self, agent_id: str) -> float:
-        """Get agent's current stake."""
         agent = self.get_agent(agent_id)
         if not agent:
             return 0.0
         return agent.get("stake", 0.0)
     
     def get_stake_info(self, agent_id: str) -> Dict:
-        """Get detailed stake info."""
         agent = self.get_agent(agent_id)
         if not agent:
             return {"stake": 0.0, "available": 0.0, "staked": 0.0, "decay_factor": 1.0}
-        
         stake = agent.get("stake", 0.0)
         staked = agent.get("staked_amount", 0.0)
         last_stake_activity = agent.get("last_stake_activity")
         decay_factor = self._calculate_stake_decay_factor(last_stake_activity)
         available = stake - staked
-        
         return {
             "stake": stake,
             "available": max(0, available),
@@ -928,207 +753,127 @@ class RedisAdapter:
         }
     
     def _calculate_stake_decay_factor(self, last_activity_iso: str) -> float:
-        """Calculate stake decay."""
         if not last_activity_iso:
             return 1.0
-        
         try:
             last_activity = datetime.fromisoformat(last_activity_iso)
             days_inactive = (datetime.utcnow() - last_activity).days
-            
             if days_inactive <= 0:
                 return 1.0
-            
             import math
-            decay_factor = math.pow(0.5, days_inactive / self.STAKE_HALFLIFE_DAYS)
-            return decay_factor
+            return math.pow(0.5, days_inactive / self.STAKE_HALFLIFE_DAYS)
         except:
             return 1.0
     
     def add_stake(self, agent_id: str, amount: float) -> bool:
-        """Add stake to agent."""
         if amount <= 0:
             return False
-        
         agent = self.get_agent(agent_id)
         if not agent:
             return False
         
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                self.redis.watch("hive:agents")
-                
-                agent_json = self.redis.hget("hive:agents", agent_id)
-                if not agent_json:
-                    return False
-                
-                agent_data = json.loads(agent_json)
-                current_stake = agent_data.get("stake", 0.0)
-                agent_data["stake"] = current_stake + amount
-                agent_data["last_stake_activity"] = datetime.utcnow().isoformat()
-                
-                pipe = self.redis.multi()
-                pipe.hset("hive:agents", agent_id, json.dumps(agent_data))
-                pipe.incr("hive:version")
-                pipe.execute()
-                
-                return True
-            except Exception:
-                if attempt == self.MAX_RETRIES - 1:
-                    return False
-                time.sleep(0.01 * (attempt + 1))
+        agent_json = self.redis.hget("hive:agents", agent_id)
+        if not agent_json:
+            return False
         
-        return False
+        agent_data = json.loads(agent_json)
+        current_stake = agent_data.get("stake", 0.0)
+        agent_data["stake"] = current_stake + amount
+        agent_data["last_stake_activity"] = datetime.utcnow().isoformat()
+        
+        self.redis.hset("hive:agents", agent_id, json.dumps(agent_data))
+        self._increment_version()
+        return True
     
     def calculate_required_stake(self, agent_id: str, vouch_score: int) -> float:
-        """Calculate stake required for vouch."""
         required = vouch_score * self.VOUCH_STAKE_MULTIPLIER
         return max(self.MIN_STAKE_TO_VOUCH, required)
     
     def calculate_proposal_stake_required(self, agent_id: str) -> float:
-        """Calculate stake required to propose."""
         trust = self.get_trust_score(agent_id)
         required = trust * self.PROPOSAL_STAKE_MULTIPLIER
         return max(self.MIN_STAKE_TO_PROPOSE, required)
     
     def can_vouch_with_stake(self, from_agent: str, vouch_score: int) -> Tuple[bool, str]:
-        """Check if agent can vouch with available stake."""
         if not self.STAKE_ENABLED:
             return True, "Stake not enabled"
-        
         info = self.get_stake_info(from_agent)
         required = self.calculate_required_stake(from_agent, vouch_score)
-        
         available = info.get("available", 0)
         decay_factor = info.get("decay_factor", 1.0)
         effective_available = available * decay_factor
-        
         if effective_available < required:
             return False, f"Insufficient stake: {effective_available:.1f} available, {required:.1f} required"
-        
         return True, "OK"
     
     def stake_vouch(self, from_agent: str, to_agent: str, score: int, reason: str,
                     domain: str = "general", skill: str = None) -> Tuple[bool, str]:
-        """Vouch with stake commitment."""
         if not self.STAKE_ENABLED:
             return self.add_vouch(from_agent, to_agent, score, reason, domain, skill), "Stake not enabled"
-        
         can_vouch, msg = self.can_vouch_with_stake(from_agent, score)
         if not can_vouch:
             return False, msg
-        
         required = self.calculate_required_stake(from_agent, score)
         
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                self.redis.watch("hive:agents")
-                
-                agent_json = self.redis.hget("hive:agents", from_agent)
-                if not agent_json:
-                    return False, "Agent not found"
-                
-                agent_data = json.loads(agent_json)
-                current_staked = agent_data.get("staked_amount", 0.0)
-                agent_data["staked_amount"] = current_staked + required
-                
-                pipe = self.redis.multi()
-                pipe.hset("hive:agents", from_agent, json.dumps(agent_data))
-                pipe.incr("hive:version")
-                pipe.execute()
-                
-                success = self.add_vouch(from_agent, to_agent, score, reason, domain, skill)
-                if not success:
-                    # Rollback stake
-                    agent_data["staked_amount"] = current_staked
-                    self.redis.hset("hive:agents", from_agent, json.dumps(agent_data))
-                    return False, "Vouch failed"
-                
-                return True, f"Vouched with {required} stake"
-            except Exception:
-                if attempt == self.MAX_RETRIES - 1:
-                    return False, "Transaction failed"
-                time.sleep(0.01 * (attempt + 1))
+        agent_json = self.redis.hget("hive:agents", from_agent)
+        if not agent_json:
+            return False, "Agent not found"
+        agent_data = json.loads(agent_json)
+        current_staked = agent_data.get("staked_amount", 0.0)
+        agent_data["staked_amount"] = current_staked + required
         
-        return False, "Transaction failed"
+        self.redis.hset("hive:agents", from_agent, json.dumps(agent_data))
+        self._increment_version()
+        
+        success = self.add_vouch(from_agent, to_agent, score, reason, domain, skill)
+        if not success:
+            # Rollback
+            agent_data["staked_amount"] = current_staked
+            self.redis.hset("hive:agents", from_agent, json.dumps(agent_data))
+            return False, "Vouch failed"
+        
+        return True, f"Vouched with {required} stake"
     
     def unstake_vouch(self, agent_id: str, amount: float) -> bool:
-        """Release staked amount."""
         if amount <= 0:
             return True
-        
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                self.redis.watch("hive:agents")
-                
-                agent_json = self.redis.hget("hive:agents", agent_id)
-                if not agent_json:
-                    return False
-                
-                agent_data = json.loads(agent_json)
-                current_staked = agent_data.get("staked_amount", 0.0)
-                agent_data["staked_amount"] = max(0, current_staked - amount)
-                
-                pipe = self.redis.multi()
-                pipe.hset("hive:agents", agent_id, json.dumps(agent_data))
-                pipe.incr("hive:version")
-                pipe.execute()
-                
-                return True
-            except Exception:
-                if attempt == self.MAX_RETRIES - 1:
-                    return False
-                time.sleep(0.01 * (attempt + 1))
-        
-        return False
+        agent_json = self.redis.hget("hive:agents", agent_id)
+        if not agent_json:
+            return False
+        agent_data = json.loads(agent_json)
+        current_staked = agent_data.get("staked_amount", 0.0)
+        agent_data["staked_amount"] = max(0, current_staked - amount)
+        self.redis.hset("hive:agents", agent_id, json.dumps(agent_data))
+        self._increment_version()
+        return True
     
     def slash_stake(self, agent_id: str, reason: str) -> float:
-        """Slash agent's stake."""
         if not self.STAKE_ENABLED:
             return 0.0
-        
         agent = self.get_agent(agent_id)
         if not agent:
             return 0.0
-        
         total_stake = agent.get("stake", 0.0)
         if total_stake == 0:
             return 0.0
-        
         slashed_amount = total_stake * self.SLASHING_THRESHOLD
         
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                self.redis.watch("hive:agents")
-                
-                agent_json = self.redis.hget("hive:agents", agent_id)
-                if not agent_json:
-                    return 0.0
-                
-                agent_data = json.loads(agent_json)
-                agent_data["stake"] = total_stake - slashed_amount
-                if "slash_history" not in agent_data:
-                    agent_data["slash_history"] = []
-                agent_data["slash_history"].append({
-                    "amount": slashed_amount,
-                    "reason": reason,
-                    "slashed_at": datetime.utcnow().isoformat()
-                })
-                
-                pipe = self.redis.multi()
-                pipe.hset("hive:agents", agent_id, json.dumps(agent_data))
-                pipe.incr("hive:version")
-                pipe.execute()
-                
-                return slashed_amount
-            except Exception:
-                if attempt == self.MAX_RETRIES - 1:
-                    return 0.0
-                time.sleep(0.01 * (attempt + 1))
-        
-        return 0.0
+        agent_json = self.redis.hget("hive:agents", agent_id)
+        if not agent_json:
+            return 0.0
+        agent_data = json.loads(agent_json)
+        agent_data["stake"] = total_stake - slashed_amount
+        if "slash_history" not in agent_data:
+            agent_data["slash_history"] = []
+        agent_data["slash_history"].append({
+            "amount": slashed_amount,
+            "reason": reason,
+            "slashed_at": datetime.utcnow().isoformat()
+        })
+        self.redis.hset("hive:agents", agent_id, json.dumps(agent_data))
+        self._increment_version()
+        return slashed_amount
 
 
 def create_redis_adapter(url: str = None, token: str = None) -> RedisAdapter:
-    """Create a Redis adapter."""
     return RedisAdapter(url, token)
