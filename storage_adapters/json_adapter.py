@@ -15,6 +15,7 @@ import uuid
 
 from .base_adapter import BaseAdapter
 from core.crypto_utils import CryptoUtils
+from core.cache_utils import get_trust_cache
 
 
 class OptimisticLockError(Exception):
@@ -288,18 +289,28 @@ class JSONAdapter(BaseAdapter):
             return 1.0
     
     def get_trust_score(self, agent_id: str) -> float:
-        """Calculate trust score from vouches (0-100) with decay."""
+        """Calculate trust score from vouches (0-100) with decay. Uses cache for performance."""
+        cache = get_trust_cache()
+        
+        cached = cache.get(agent_id)
+        if cached is not None:
+            return cached
+        
         base_score = self._calculate_trust_recursive(agent_id, set())
         
-        # Apply decay if enabled
         if self.DECAY_ENABLED:
             agent = self.get_agent(agent_id)
             if agent:
                 last_activity = agent.get("last_activity_at")
                 decay_factor = self._calculate_decay_factor(last_activity)
-                return round(base_score * decay_factor, 2)
+                score = round(base_score * decay_factor, 2)
+            else:
+                score = base_score
+        else:
+            score = base_score
         
-        return base_score
+        cache.set(agent_id, score)
+        return score
     
     def get_hybrid_trust_score(self, agent_id: str, domain: str = "general") -> Dict:
         """Get hybrid trust score combining Hive + Attestation with configurable ratios."""
@@ -685,6 +696,12 @@ class JSONAdapter(BaseAdapter):
                     self._conditional_write(vouch_file, attestations, version)
                     self._update_agent_trust(to_agent, len(attestations))
                     self._update_agent_activity(to_agent)
+                    
+                    from core.cache_utils import get_trust_cache
+                    cache = get_trust_cache()
+                    all_agents = [a.get("agent_id") for a in self.get_all_agents()]
+                    cache.invalidate_related(to_agent, all_agents)
+                    
                     return True
                     
                 except OptimisticLockError:

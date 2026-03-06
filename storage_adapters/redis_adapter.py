@@ -17,6 +17,7 @@ except ImportError:
     REDIS_AVAILABLE = False
 
 from core.crypto_utils import CryptoUtils
+from core.cache_utils import get_trust_cache
 
 
 class RedisAdapter:
@@ -190,13 +191,25 @@ class RedisAdapter:
             return 1.0
     
     def get_trust_score(self, agent_id: str) -> float:
+        cache = get_trust_cache()
+        
+        cached = cache.get(agent_id)
+        if cached is not None:
+            return cached
+        
         base_score = self._calculate_trust_recursive(agent_id, set())
         if self.DECAY_ENABLED:
             agent = self.get_agent(agent_id)
             if agent:
                 decay_factor = self._calculate_decay_factor(agent.get("last_activity_at"))
-                return round(base_score * decay_factor, 2)
-        return base_score
+                score = round(base_score * decay_factor, 2)
+            else:
+                score = base_score
+        else:
+            score = base_score
+        
+        cache.set(agent_id, score)
+        return score
     
     def _calculate_trust_recursive(self, agent_id: str, visited: set) -> float:
         if agent_id in visited:
@@ -480,6 +493,11 @@ class RedisAdapter:
             # Update trust and activity (non-atomic but acceptable for low concurrency)
             self._update_agent_trust(to_agent, len(self.get_vouches(to_agent)))
             self._update_agent_activity(to_agent)
+            
+            from core.cache_utils import get_trust_cache
+            cache = get_trust_cache()
+            all_agents = [a.get("agent_id") for a in self.get_all_agents()]
+            cache.invalidate_related(to_agent, all_agents)
             
             return True
         except Exception as e:
