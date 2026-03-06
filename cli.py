@@ -310,6 +310,13 @@ def main():
     p_swarm = subparsers.add_parser("swarm", help="Show swarm status")
     p_swarm.set_defaults(func=cmd_swarm)
     
+    # Enable argcomplete autocomplete if installed
+    try:
+        import argcomplete
+        argcomplete.autocomplete(parser)
+    except ImportError:
+        pass
+
     args = parser.parse_args()
     
     if hasattr(args, "func"):
