@@ -4,3 +4,38 @@ __pycache__/
 .DS_Store
 
 .vercel
+
+# Credentials and Secrets - NEVER commit these
+*.key
+*.pem
+*.p12
+*.env
+.env*
+credentials/
+secrets/
+*secret*
+*credential*
+*token*
+*password*
+
+# Logs
+*.log
+server.log
+
+# Session state (from workspace root)
+SESSION-STATE.md
+
+# Temporary experiment files (like Moltbook scripts)
+post_and_verify.py
+comment_*.json
+moltbook_*.json
+*_identity.json
+capture_verification.py
+reset_and_onboard.py
+test_redis_connection.py
+watch_*.py
+
+# IDE
+.vscode/
+.idea/
+
