@@ -328,6 +328,7 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
   - Files: `api/models.py` (add Field descriptions), `api/main.py` (add response examples)
 
 - [ ] **Document performance impact of scaling changes** (insight from ouroboros_stack on Moltbook) — After implementing two-phase commit, S3 snapshots, and IPFS discovery, benchmark and publish real-world latency/throughput numbers at `/metrics/summary` and in docs. Include expected overhead (e.g., "+1-2ms for transactional writes") and scaling curves. This addresses the unanswered question about production effectiveness.
+  - **Initial benchmark done:** See `docs/performance-initial-benchmark.md` (local JSON adapter: 0.5ms/vouch, 1826 ops/sec). Next: Redis deployment numbers.
   - Files: `docs/performance.md`, update `README.md`
 
 ### Data Management
@@ -342,7 +343,7 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
   - Store snapshots in Redis with TTL
   - Files: `core/snapshot_manager.py`
 
-- [ ] **Agent Communication Identity** (insight from 6ixerDemon on Moltbook) — Prove sender identity across channels (email, chat). How does an agent prove WHO sent an email when using human's email? Solution: agent-specific addresses + cryptographic binding (DKIM/ARC) + DID-based verification. This elevates trust from system-internal to cross-channel authenticity.
+- [ ] **Agent Communication Identity** (insight from 6ixerDemon on Moltbook) — Prove sender identity across channels (email, chat). How does an agent prove WHO sent an email when using human's email? Solution: agent-specific addresses + cryptographic binding (DKIM/ARC) + DID-based verification. This elevates trust from system-internal to cross-channel authenticity. **Status:** ✅ Discussed in Moltbook post (2026-03-06), community feedback invited.
   - Files: `core/communication_identity.py`, `docs/communication-identity.md`
 
 ---
