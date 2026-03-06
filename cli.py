@@ -83,21 +83,25 @@ def cmd_vouch(args):
     """Make a vouch for another agent."""
     config = load_config()
     swarm = create_swarm(STATE_DIR)
-    
-    result = swarm.vouch(
-        from_agent=args.from_agent,
-        to_agent=args.to_agent,
-        score=args.score,
-        reason=args.reason or "Vouched via CLI",
-        signature=config.get("identity", {}).get("private_key")
-    )
-    
+
+    try:
+        result = swarm.vouch(
+            from_agent=args.from_agent,
+            to_agent=args.to_agent,
+            score=args.score,
+            reason=args.reason or "Vouched via CLI",
+            signature=config.get("identity", {}).get("private_key")
+        )
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        return False
+
     if result:
         print(f"[OK] Vouch created: {args.from_agent} -> {args.to_agent} (score: {args.score})")
         print(f"   New trust score for {args.to_agent}: {swarm.get_trust_score(args.to_agent)}")
     else:
-        print(f"[FAIL] Failed to create vouch")
-    
+        print(f"[FAIL] Vouch creation failed. Possible reasons: validation error, missing identity, or insufficient rights.")
+
     return result
 
 
