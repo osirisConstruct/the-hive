@@ -271,8 +271,8 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
 - [x] **Implement trust score caching**
   - Cache computed trust scores in Redis with 1-hour TTL
   - Invalidate cache on vouch/proposal changes
-  - Files: `core/cache_utils.py`, update `SwarmGovernance.get_tr - Expected: ust_score()`
- 10-100x performance improvement for read-heavy workloads
+  - Files: `core/cache_utils.py`, `JsonAdapter.get_trust_score()`, `RedisAdapter.get_trust_score()`
+  - Expected: 10-100x improvement for read-heavy workloads
 
 - [x] **Add rate limiting middleware**
   - Current: No limits → DoS risk
@@ -293,12 +293,11 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
 
 ### Monitoring & Observability
 - [x] **Add Prometheus metrics endpoint**
-  - Expose: `/metrics` with counters for:
-    - requests_total, request_duration_seconds
-    - trust_score_histogram, proposal_latency_seconds
-    - redis_connection_pool_size, queue_depth
-  - Files: `api/metrics.py`, updated `api/main.py`
-  - Endpoints: GET /metrics, GET /metrics/summary
+  - Expose: `/metrics` (Prometheus format), `/metrics/summary` (JSON)
+  - Track: requests_total, request_duration_seconds, trust_score_calculations_total, proposals_total, vouches_total, uptime_seconds
+  - Auto-detects events from routes (GET /trust/*, POST /proposals, POST /trust/vouch)
+  - Files: `api/metrics.py`, updated `api/main.py` (middleware integration)
+  - Tested: 6 unit tests + manual verification
 
 - [ ] **Create Grafana dashboard**
   - Visualize: Agent count, trust distribution, active proposals, error rates
