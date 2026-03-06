@@ -353,6 +353,7 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
   - If proposal causes errors: automatic rollback
   - Store snapshots in Redis with TTL
   - Files: `core/snapshot_manager.py`
+  - **Status:** In Progress — scaffold created (2026-03-06) with detailed design docstrings; basic class structure in place; persistence and rollback logic pending.
 
 ### Interoperability & Standards (Phase 9.0+)
 
