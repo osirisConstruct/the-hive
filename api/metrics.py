@@ -7,6 +7,12 @@ import time
 from typing import Dict, Optional
 from threading import Lock
 
+try:
+    from fastapi import Request
+    FASTAPI_AVAILABLE = True
+except ImportError:
+    FASTAPI_AVAILABLE = False
+
 
 class MetricsCollector:
     """

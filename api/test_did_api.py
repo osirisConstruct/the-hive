@@ -7,6 +7,11 @@ import requests
 import sys
 import os
 
+# Fix Windows console encoding for emoji
+if sys.platform == "win32":
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from core.crypto_utils import CryptoUtils
 
