@@ -86,6 +86,37 @@ python cli.py trust --agent=agent_b
 python cli.py swarm
 ```
 
+## Trust Visualization CLI
+
+Visualize the trust graph from the terminal:
+
+```bash
+# ASCII table (default)
+python tools/trust_viz_cli.py --format=ascii
+
+# Rich colored output
+python tools/trust_viz_cli.py --format=rich
+
+# DOT format for GraphViz
+python tools/trust_viz_cli.py --format=dot
+
+# JSON for web tools
+python tools/trust_viz_cli.py --format=json
+
+# Filter by minimum trust
+python tools/trust_viz_cli.py --min-trust=0.5
+
+# Custom API endpoint
+python tools/trust_viz_cli.py --health-url=https://the-hive-o6y8.onrender.com/health
+```
+
+## API Endpoints
+
+```bash
+# Check rate limits
+curl https://the-hive-o6y8.onrender.com/rate-limits
+```
+
 ## Identity Backup
 
 ```bash
