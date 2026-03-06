@@ -794,6 +794,29 @@ class JSONAdapter(BaseAdapter):
         
         return all_vouches
     
+    def get_all_vouches(self) -> List[Dict]:
+        """Get all active vouches in the swarm (for graph visualization)."""
+        attestations_dir = self.state_dir / "attestations"
+        all_vouches = []
+        
+        for vouch_file in attestations_dir.glob("*.json"):
+            attestations, _ = self._read_with_version(vouch_file)
+            if not attestations:
+                continue
+            for v in attestations:
+                if not isinstance(v, dict):
+                    continue
+                # Check expiration
+                try:
+                    expiry = datetime.fromisoformat(v["expires_at"])
+                    if expiry > datetime.utcnow():
+                        all_vouches.append(v)
+                except (KeyError, ValueError):
+                    # Skip malformed vouches
+                    continue
+        
+        return all_vouches
+    
     # ========== PROPOSALS ==========
     
     def create_proposal(self, proposer_id: str, title: str, description: str, code_diff_hash: str, signature: str = None) -> Optional[str]:

@@ -37,6 +37,11 @@ class BaseAdapter(ABC):
         pass
     
     @abstractmethod
+    def get_all_vouches(self) -> List[Dict]:
+        """Get all active vouches in the swarm (for graph visualization)."""
+        pass
+    
+    @abstractmethod
     def create_proposal(self, proposer_id: str, title: str, description: str, code_diff_hash: str) -> str:
         pass
     

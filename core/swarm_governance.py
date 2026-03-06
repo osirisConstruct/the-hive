@@ -79,6 +79,53 @@ class SwarmGovernance:
         """Get vouches given by an agent."""
         return self.adapter.get_vouches_given(agent_id)
     
+    def get_trust_graph(self) -> dict:
+        """
+        Build the trust graph for visualization.
+        Returns nodes (agents) and edges (vouches).
+        """
+        agents = self.adapter.get_all_agents()
+        vouches = self.adapter.get_all_vouches()
+        
+        nodes = []
+        agent_lookup = {}
+        
+        for agent in agents:
+            agent_id = agent.get("agent_id")
+            trust = self.adapter.get_trust_score(agent_id)
+            vouch_count = len([v for v in vouches if v.get("to_agent") == agent_id])
+            
+            nodes.append({
+                "id": agent_id,
+                "name": agent.get("name", agent_id),
+                "trust_score": trust,
+                "vouch_count": vouch_count
+            })
+            agent_lookup[agent_id] = agent
+        
+        edges = []
+        for vouch in vouches:
+            from_agent = vouch.get("from_agent")
+            to_agent = vouch.get("to_agent")
+            if from_agent in agent_lookup and to_agent in agent_lookup:
+                edges.append({
+                    "source": from_agent,
+                    "target": to_agent,
+                    "weight": vouch.get("score", 50) / 100.0,  # normalize to 0-1
+                    "timestamp": vouch.get("created_at"),
+                    "reason": vouch.get("reason", "")
+                })
+        
+        return {
+            "nodes": nodes,
+            "edges": edges,
+            "metadata": {
+                "total_agents": len(nodes),
+                "total_vouches": len(edges),
+                "generated_at": datetime.utcnow().isoformat() + "Z"
+            }
+        }
+    
     # ========== PROPOSALS & EVOLUTION ==========
     
     def propose_evolution(

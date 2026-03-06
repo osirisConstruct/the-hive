@@ -2,6 +2,7 @@ import sys
 import os
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.staticfiles import StaticFiles
 from typing import List, Dict, Any
 
 # Add parent to path to allow imports from core and storage_adapters
@@ -14,6 +15,14 @@ from api.middleware import add_rate_limiting
 from api.metrics import get_metrics_collector, metrics_middleware
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
+
+# Mount static files (dashboard, etc.)
+dashboard_dir = Path(__file__).parent.parent / "dashboard"
+if dashboard_dir.exists():
+    app.mount("/dashboard", StaticFiles(directory=str(dashboard_dir)), name="dashboard")
+    print(f"[The Hive] Mounted dashboard at /dashboard")
+else:
+    print(f"[The Hive] Dashboard directory not found: {dashboard_dir}")
 
 # Add rate limiting middleware
 add_rate_limiting(app)
@@ -130,6 +139,11 @@ def get_trust_details(agent_id: str):
         "graph": swarm.get_graph_properties(agent_id),
         "suspicious": swarm.check_suspicious_patterns(agent_id)
     }
+
+@app.get("/trust/graph")
+def get_trust_graph():
+    """Get full trust graph for visualization (nodes and edges)."""
+    return swarm.get_trust_graph()
 
 # ---------- PROPOSAL ENDPOINTS ----------
 
