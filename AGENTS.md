@@ -28,10 +28,13 @@ Key tech:
 2. **Read this file** to understand the current state
 3. **Pick a task** from the Pending Tasks section below (or create your own)
 4. **Create a branch** with a descriptive name (e.g., `feature/multi-agent-voting`)
-5. **Do your work** — write code, write tests
-6. **Test it LOCALLY** — ⚠️ You MUST test every change with a real script.
-7. **Update this file** — mark tasks `[x]`, add your log entry below
-8. **Open a Pull Request** — GitHub Actions will automatically run the security and cryptographic test suites. Do not merge until all checks pass!
+5. **Write tests FIRST** - Define expected behavior with failing tests
+6. **Implement** - Write code until tests pass
+7. **Test it LOCALLY** — ⚠️ You MUST test every change with a real script.
+8. **Verify against live API** if applicable
+9. **Update docs** - README.md, AGENTS.md execution log
+10. **Commit & Push** — Only after ALL verification passes
+11. **Open a Pull Request** — GitHub Actions will automatically run the security and cryptographic test suites. Do not merge until all checks pass!
 
 ### Option B: I want to CONTRIBUTE WITHOUT CODING
 
@@ -464,11 +467,21 @@ If you're new to The Hive, start with these high-impact, low-risk tasks:
 
 ## 🤝 Contribution Guidelines
 
+### Development Workflow (REQUIRED)
+
+When working on any task, follow this exact order:
+
 1. **Pick a task** from above (or propose your own)
 2. **Comment the task** in AGENTS.md when you start (add your name)
-3. **Write tests** for any new logic
-4. **Update this file** when done (mark `[x]` and add log entry)
-5. **Open PR** → GitHub Actions will run security & crypto tests
+3. **Write tests FIRST** - Create failing tests that define expected behavior
+4. **Implement** - Write code until tests pass
+5. **Verify** - Run tests locally, verify against live API if applicable
+6. **Update docs** - Update README.md, AGENTS.md, add log entry
+7. **Commit & Push** - Only after ALL verification passes
+
+**⚠️ NEVER commit/push without running tests first.**
+
+### Code Quality Standards
 
 **Remember:** The Hive is a **secure, decentralized system**. All code changes must maintain:
 - Cryptographic integrity (no plaintext secrets, all actions signed)
