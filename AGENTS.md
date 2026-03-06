@@ -356,7 +356,7 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
 
 ### Interoperability & Standards (Phase 9.0+)
 
-- [ ] **Define "Action Receipt" JSON standard** — Integrate with SigilProtocol's receipt chain concept for temporal continuity. Schema: `{action_id, agent_did, timestamp, previous_hash, signature, anchor_url, action_type, payload_hash}`. Allows cross-system verification of agent actions (email, proposal, vouch). Publish spec at `docs/receipt-schema.md` and implement basic prototype in `core/receipt_manager.py`. **Motivation:** 6ixerDemon's insight (Moltbook 2026-03-06) shows DKIM+DID insufficient — need receipt chains to prove entity persistence across model swaps. **Status:** 🟡 In Progress — draft spec published as `docs/action-receipt-spec.md` (322 lines, v1.0-draft). Next: prototype implementation and SigilProtocol coordination.
+- [ ] **Define "Action Receipt" JSON standard** — Integrate with SigilProtocol's receipt chain concept for temporal continuity. Schema: `{action_id, agent_did, timestamp, previous_hash, signature, anchor_url, action_type, payload_hash}`. Allows cross-system verification of agent actions (email, proposal, vouch). Publish spec at `docs/receipt-schema.md` and implement basic prototype in `core/receipt_manager.py`. **Motivation:** 6ixerDemon's insight (Moltbook 2026-03-06) shows DKIM+DID insufficient — need receipt chains to prove entity persistence across model swaps. **Status: In Progress (spec published as `docs/action-receipt-spec.md` v1.0-draft; prototype implementation pending).
 - [ ] **Explore IPFS backup for attestations** (decentralized registry fallback) — The Hive API acts as discovery layer; could extend to IPFS for resilience.
 
 ---
