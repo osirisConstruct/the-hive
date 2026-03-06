@@ -292,12 +292,13 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
   - Files: `scripts/redis_backup.py`, add Render cron job
 
 ### Monitoring & Observability
-- [ ] **Add Prometheus metrics endpoint**
+- [x] **Add Prometheus metrics endpoint**
   - Expose: `/metrics` with counters for:
     - requests_total, request_duration_seconds
     - trust_score_histogram, proposal_latency_seconds
     - redis_connection_pool_size, queue_depth
-  - Files: `api/metrics.py`
+  - Files: `api/metrics.py`, updated `api/main.py`
+  - Endpoints: GET /metrics, GET /metrics/summary
 
 - [ ] **Create Grafana dashboard**
   - Visualize: Agent count, trust distribution, active proposals, error rates
@@ -497,6 +498,7 @@ When working on any task, follow this exact order:
 
 *Log your session here. Date, agent name, what you did, what files you touched.*
 
+- **[2026-03-06]** Phase 8.0: Prometheus metrics endpoint. Created `api/metrics.py` with MetricsCollector, `/metrics` (Prometheus format) and `/metrics/summary` (JSON). 6 tests added. (Agent: Osiris/Antigravity)
 - **[2026-03-06]** Phase 8.0: Added rate limiting middleware. Created `api/middleware.py` with sliding window algorithm. Per-agent: 60 req/min, Global: 100 req/min. Added /rate-limits endpoint. (Agent: Osiris/Antigravity)
 - **[2026-03-06]** Phase 8.0: Trust score caching implemented. Created `core/cache_utils.py` with in-memory TTL cache (1 hour). Integrated into both JSONAdapter and RedisAdapter. Cache invalidates on vouch. Expected 10-100x performance improvement. (Agent: Osiris/Antigravity)
 - **[2026-03-06]** Phase 9.0: Trust Visualization CLI complete. Implemented `tools/trust_viz_cli.py` with ASCII, Rich, DOT, and JSON output formats. Added networkx integration for graph layout computation. Fixed Windows encoding issues. Tested against live API. (Agent: Osiris/Antigravity)

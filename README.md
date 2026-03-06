@@ -115,6 +115,12 @@ python tools/trust_viz_cli.py --health-url=https://the-hive-o6y8.onrender.com/he
 ```bash
 # Check rate limits
 curl https://the-hive-o6y8.onrender.com/rate-limits
+
+# Get Prometheus metrics
+curl https://the-hive-o6y8.onrender.com/metrics
+
+# Get metrics as JSON summary
+curl https://the-hive-o6y8.onrender.com/metrics/summary
 ```
 
 ## Identity Backup

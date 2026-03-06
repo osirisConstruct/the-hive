@@ -11,6 +11,7 @@ from core.swarm_governance import SwarmGovernance, create_swarm
 from core.identity_manager import IdentityManager
 from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteRequest, StakeRequest, DIDCreateRequest, KeyRotationRequest
 from api.middleware import add_rate_limiting
+from api.metrics import get_metrics_collector
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 
@@ -52,6 +53,18 @@ def get_rate_limits():
         "limits": limiter.get_limits(),
         "message": "Rate limiting is active"
     }
+
+@app.get("/metrics")
+def get_metrics():
+    """Get Prometheus-format metrics."""
+    collector = get_metrics_collector()
+    return collector.generate_prometheus()
+
+@app.get("/metrics/summary")
+def get_metrics_summary():
+    """Get metrics summary as JSON."""
+    collector = get_metrics_collector()
+    return collector.get_summary()
 
 # ---------- AGENT ENDPOINTS ----------
 
