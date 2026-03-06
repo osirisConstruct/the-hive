@@ -10,8 +10,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.swarm_governance import SwarmGovernance, create_swarm
 from core.identity_manager import IdentityManager
 from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteRequest, StakeRequest, DIDCreateRequest, KeyRotationRequest
+from api.middleware import add_rate_limiting
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
+
+# Add rate limiting middleware
+add_rate_limiting(app)
 
 # Auto-detect Redis if environment variables are set
 redis_url = os.environ.get("UPSTASH_REDIS_REST_URL")
@@ -38,6 +42,16 @@ else:
 def get_health():
     """Get swarm and API health."""
     return swarm.get_swarm_health()
+
+@app.get("/rate-limits")
+def get_rate_limits():
+    """Get current rate limit configuration and usage."""
+    from api.middleware import get_rate_limiter
+    limiter = get_rate_limiter()
+    return {
+        "limits": limiter.get_limits(),
+        "message": "Rate limiting is active"
+    }
 
 # ---------- AGENT ENDPOINTS ----------
 

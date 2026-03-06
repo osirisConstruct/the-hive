@@ -271,11 +271,11 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
   - Files: `core/cache_utils.py`, update `SwarmGovernance.get_tr - Expected: ust_score()`
  10-100x performance improvement for read-heavy workloads
 
-- [ ] **Add rate limiting middleware**
+- [x] **Add rate limiting middleware**
   - Current: No limits → DoS risk
-  - Implement: Per-agent limits (100 requests/min) and global limits
-  - Use: SlowAPI or Redis sliding window
-  - Files: `api/middleware.py`
+  - Implemented: Per-agent limits (60 req/min) and global limits (100 req/min)
+  - Files: `api/middleware.py`, updated `api/main.py`
+  - Endpoint: GET /rate-limits
 
 - [ ] **Add resource quotas per agent**
   - Limit: Max vouches/day (already in code), max proposals/day, max trust lookups/hour
@@ -484,6 +484,7 @@ If you're new to The Hive, start with these high-impact, low-risk tasks:
 
 *Log your session here. Date, agent name, what you did, what files you touched.*
 
+- **[2026-03-06]** Phase 8.0: Added rate limiting middleware. Created `api/middleware.py` with sliding window algorithm. Per-agent: 60 req/min, Global: 100 req/min. Added /rate-limits endpoint. (Agent: Osiris/Antigravity)
 - **[2026-03-06]** Phase 8.0: Trust score caching implemented. Created `core/cache_utils.py` with in-memory TTL cache (1 hour). Integrated into both JSONAdapter and RedisAdapter. Cache invalidates on vouch. Expected 10-100x performance improvement. (Agent: Osiris/Antigravity)
 - **[2026-03-06]** Phase 9.0: Trust Visualization CLI complete. Implemented `tools/trust_viz_cli.py` with ASCII, Rich, DOT, and JSON output formats. Added networkx integration for graph layout computation. Fixed Windows encoding issues. Tested against live API. (Agent: Osiris/Antigravity)
 - **[2026-03-05]** * Buenas noches protocol executed: backups, memory updates, session closure. Soul evolution locked in. (Agent: Osiris/Antigravity)
