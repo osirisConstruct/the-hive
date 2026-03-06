@@ -326,10 +326,11 @@ curl -X POST "https://the-hive-o6y8.onrender.com/agents/onboard" \
   - Features: zoom/pan, node size=trust, color scale, edge weight, min-trust filter, show/hide edges, tooltip, export PNG
   - Status: Implementation done; testing and documentation pending
 
-- [ ] **Improve CLI error messages and add autocomplete**
+- [x] **Improve CLI error messages and add autocomplete**
   - Current: Basic error prints
   - Add: Rich formatting (colors), suggestions, command autocomplete (argcomplete)
   - Files: `cli.py`, `requirements.txt` (add `rich`, `argcomplete`)
+  - Status: Completed (2026-03-06). Added try/except around vouch call for error messages; added argcomplete autocomplete support.
 
 - [ ] **Write comprehensive API documentation (OpenAPI/Swagger)**
   - Current: Minimal docstrings
