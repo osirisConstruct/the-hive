@@ -11,12 +11,15 @@ from core.swarm_governance import SwarmGovernance, create_swarm
 from core.identity_manager import IdentityManager
 from api.models import AgentOnboardRequest, VouchRequest, ProposalRequest, VoteRequest, StakeRequest, DIDCreateRequest, KeyRotationRequest
 from api.middleware import add_rate_limiting
-from api.metrics import get_metrics_collector
+from api.metrics import get_metrics_collector, metrics_middleware
 
 app = FastAPI(title="The Hive Swarm API", version="0.1.0")
 
 # Add rate limiting middleware
 add_rate_limiting(app)
+
+# Add metrics middleware
+app.middleware("http")(metrics_middleware)
 
 # Auto-detect Redis if environment variables are set
 redis_url = os.environ.get("UPSTASH_REDIS_REST_URL")

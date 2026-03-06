@@ -142,8 +142,8 @@ def get_metrics_collector() -> MetricsCollector:
     return _metrics_collector
 
 
-async def metrics_middleware(request, call_next):
-    """Async middleware to record request metrics."""
+async def metrics_middleware(request: Request, call_next):
+    """Async middleware to record request metrics and auto-detect events."""
     import time as time_module
     
     start_time = time_module.time()
@@ -156,5 +156,17 @@ async def metrics_middleware(request, call_next):
         status_code=response.status_code,
         duration=duration
     )
+    
+    # Auto-detect specific events based on route
+    path = request.url.path
+    method = request.method
+    
+    if method == "GET" and path.startswith("/trust/"):
+        # Trust score lookup
+        metrics.record_trust_score(0.0)  # We don't have the score here, but count the call
+    elif method == "POST" and path == "/proposals":
+        metrics.record_proposal()
+    elif method == "POST" and path == "/trust/vouch":
+        metrics.record_vouch()
     
     return response
